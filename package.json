@@ -1,0 +1,15 @@
+{
+  "name": "apps",
+  "private": true,
+  "description": "A collection of self-contained web apps. Node is only used for the tests — the apps themselves have no build step.",
+  "scripts": {
+    "test": "node tests/solver.test.cjs && node tests/browser.test.mjs",
+    "test:solver": "node tests/solver.test.cjs",
+    "test:solver:long": "node tests/solver.test.cjs 25000",
+    "test:browser": "node tests/browser.test.mjs",
+    "serve": "python3 -m http.server 8000"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

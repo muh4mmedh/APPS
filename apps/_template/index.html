@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>APP_NAME</title>
+<meta name="description" content="APP_TAGLINE">
+<meta name="theme-color" content="#0a0c11">
+<link rel="stylesheet" href="../../assets/css/base.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="shell">
+
+  <header class="topbar">
+    <a class="brandmark" href="../../" aria-label="All apps">◩</a>
+    <div>
+      <h1 class="topbar__title">APP_NAME</h1>
+      <p class="faint" style="font-size:.78rem">APP_TAGLINE</p>
+    </div>
+    <div class="topbar__spacer"></div>
+    <a class="btn btn--quiet" href="../../">All apps</a>
+  </header>
+
+  <main class="card" style="padding:22px;display:grid;gap:14px;max-width:640px">
+    <h2>Starting point</h2>
+    <p class="muted">
+      The shared stylesheet is already linked, so <code>.card</code>, <code>.btn</code>,
+      <code>.chip</code> and the colour tokens all work. Put app styles in
+      <code>css/app.css</code> and app code in <code>js/app.js</code>.
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn--primary" id="demo" type="button">A button</button>
+      <span class="chip">a chip</span>
+    </div>
+    <p class="notice" id="out" hidden></p>
+  </main>
+
+</div>
+<script src="js/app.js"></script>
+</body>
+</html>

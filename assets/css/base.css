@@ -1,0 +1,246 @@
+/*
+ * base.css — shared foundation for every app in this repo.
+ *
+ * Design tokens, resets and the handful of primitives (buttons, cards, chips,
+ * fields) that every app needs. Apps add their own stylesheet on top; they
+ * should not redefine these tokens, so the whole collection stays coherent as
+ * it grows.
+ */
+
+:root {
+  /* surfaces */
+  --bg: #0a0c11;
+  --bg-glow-1: #241a5e;
+  --bg-glow-2: #06312c;
+  --surface: #11141c;
+  --surface-2: #171b25;
+  --raised: rgba(255, 255, 255, 0.045);
+  --raised-hover: rgba(255, 255, 255, 0.075);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+
+  /* ink */
+  --text: #e9edf6;
+  --text-dim: #949cb1;
+  --text-faint: #646b7e;
+
+  /* accents */
+  --accent: #6f5cf6;
+  --accent-soft: rgba(111, 92, 246, 0.16);
+  --accent-line: rgba(111, 92, 246, 0.45);
+  --mint: #24d3a5;
+  --amber: #ffbf3c;
+  --rose: #fb5c6c;
+
+  /* shape */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-xl: 26px;
+  --shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.3);
+
+  /* type */
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  --ease: cubic-bezier(0.22, 0.68, 0.24, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/*
+ * The `hidden` attribute only hides an element because the browser's own
+ * stylesheet says `display: none`, so any class here that sets `display`
+ * (.btn, .chip, .notice, …) would quietly override it and show the element
+ * anyway. This keeps `hidden` meaning hidden.
+ */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.5;
+}
+
+/* Two soft colour washes, fixed so they do not scroll with content. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(1100px 620px at 12% -12%, var(--bg-glow-1), transparent 65%),
+    radial-gradient(900px 560px at 92% 8%, var(--bg-glow-2), transparent 62%),
+    var(--bg);
+  opacity: 0.85;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 640; letter-spacing: -0.02em; line-height: 1.2; }
+p { margin: 0; }
+a { color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------------------------ layout */
+
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 20px 64px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 0 22px;
+}
+
+.topbar__title { font-size: 1.05rem; }
+.topbar__spacer { flex: 1; }
+
+.brandmark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, var(--accent), #2b1f86);
+  box-shadow: var(--shadow-sm);
+  font-size: 17px;
+  flex: none;
+}
+
+/* ------------------------------------------------------------------ pieces */
+
+/*
+ * No backdrop-filter here on purpose. It looks near-identical over these
+ * mostly-opaque surfaces, and in Chromium a backdrop-filter ancestor breaks
+ * `transform-style: preserve-3d` in its descendants — which silently wrecked
+ * the 3D cube inside a card (back faces bleeding through the front ones).
+ * Use it on full-screen overlays that hold no 3D content, not on cards.
+ */
+.card {
+  background: linear-gradient(180deg, var(--raised), rgba(255, 255, 255, 0.015));
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  font: inherit;
+  font-weight: 560;
+  font-size: 0.925rem;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background 0.16s var(--ease), border-color 0.16s var(--ease),
+              transform 0.12s var(--ease), opacity 0.16s var(--ease);
+  user-select: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:hover:not(:disabled) { background: var(--raised-hover); border-color: var(--line-strong); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+.btn--primary {
+  background: linear-gradient(170deg, var(--accent), #4b34d8);
+  border-color: transparent;
+  box-shadow: 0 8px 22px rgba(89, 66, 230, 0.36);
+}
+.btn--primary:hover:not(:disabled) {
+  background: linear-gradient(170deg, #7e6dff, #5842e6);
+  border-color: transparent;
+}
+
+.btn--quiet { background: transparent; }
+.btn--quiet:hover:not(:disabled) { background: var(--raised); }
+
+.btn--icon { min-width: 42px; padding: 0 10px; }
+.btn--lg { min-height: 50px; padding: 0 22px; font-size: 1rem; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  font-size: 0.8rem;
+  font-weight: 560;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 640;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  color: #c3b9ff;
+}
+
+.muted { color: var(--text-dim); }
+.faint { color: var(--text-faint); }
+.mono { font-family: var(--mono); }
+
+.notice {
+  display: flex;
+  gap: 11px;
+  padding: 13px 15px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--raised);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.notice--warn { border-color: rgba(255, 191, 60, 0.38); background: rgba(255, 191, 60, 0.09); }
+.notice--bad { border-color: rgba(251, 92, 108, 0.4); background: rgba(251, 92, 108, 0.1); }
+.notice--good { border-color: rgba(36, 211, 165, 0.38); background: rgba(36, 211, 165, 0.09); }
+.notice__icon { flex: none; font-size: 1rem; line-height: 1.35; }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

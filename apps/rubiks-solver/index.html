@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rubik's Solver</title>
+<meta name="description" content="Scan a Rubik's cube with your camera and get the turns that solve it, one step at a time.">
+<meta name="theme-color" content="#0a0c11">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141c'/%3E%3Crect x='6' y='6' width='8' height='8' rx='2' fill='%23fb5c6c'/%3E%3Crect x='18' y='6' width='8' height='8' rx='2' fill='%23ffbf3c'/%3E%3Crect x='6' y='18' width='8' height='8' rx='2' fill='%2324d3a5'/%3E%3Crect x='18' y='18' width='8' height='8' rx='2' fill='%236f5cf6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/base.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="shell">
+
+  <header class="topbar">
+    <a class="brandmark" href="../../" aria-label="All apps">◩</a>
+    <div>
+      <h1 class="topbar__title">Rubik&rsquo;s Solver</h1>
+      <p class="faint topbar__sub">Show it each face, follow the turns</p>
+    </div>
+    <div class="topbar__spacer"></div>
+    <a class="btn btn--quiet" href="../../">All apps</a>
+  </header>
+
+  <nav class="steps" aria-label="Progress">
+    <button class="steps__item is-current" data-goto="scan" type="button">
+      <span class="steps__num">1</span><span class="steps__label">Scan</span>
+    </button>
+    <button class="steps__item" data-goto="review" type="button" disabled>
+      <span class="steps__num">2</span><span class="steps__label">Review</span>
+    </button>
+    <button class="steps__item" data-goto="solve" type="button" disabled>
+      <span class="steps__num">3</span><span class="steps__label">Solve</span>
+    </button>
+  </nav>
+
+  <!-- ------------------------------------------------------------- scan -->
+  <section class="panel panel--scan" id="panel-scan">
+    <div class="stage card" id="stage">
+      <video class="stage__video" id="video" playsinline muted autoplay></video>
+      <div class="stage__frame" id="grid" aria-hidden="true"></div>
+
+      <div class="stage__idle" id="camIdle">
+        <div class="stage__idle-inner">
+          <div class="stage__idle-icon">◫</div>
+          <h2>Point your camera at the cube</h2>
+          <p class="muted" id="camIdleText">
+            The nine squares read one face at a time. Nothing leaves your device.
+          </p>
+          <button class="btn btn--primary btn--lg" id="btnStartCam" type="button">Start camera</button>
+        </div>
+      </div>
+
+      <div class="stage__steady" id="steady" hidden>
+        <div class="stage__steady-bar" id="steadyBar"></div>
+        <span class="stage__steady-text">Hold steady&hellip;</span>
+      </div>
+
+      <div class="stage__flash" id="flash" aria-hidden="true"></div>
+    </div>
+
+    <aside class="scan-side">
+      <div class="card guide">
+        <div class="guide__cube" id="guideCube" aria-hidden="true"></div>
+        <div class="guide__body">
+          <span class="tag" id="guideStep">Face 1 of 6</span>
+          <h2 id="guideTitle">Top face</h2>
+          <p class="muted" id="guideHint"></p>
+        </div>
+      </div>
+
+      <div class="faces" id="faceChips"></div>
+
+      <div id="scanNotice" class="scan-notice"></div>
+
+      <div class="scan-controls">
+        <button class="btn btn--primary btn--lg" id="btnCapture" type="button" disabled>
+          Capture face
+        </button>
+        <div class="scan-controls__row">
+          <label class="toggle">
+            <input type="checkbox" id="chkAuto" checked>
+            <span>Capture automatically</span>
+          </label>
+          <button class="btn btn--icon" id="btnMirror" type="button" title="Mirror the preview" aria-label="Mirror the preview">⇋</button>
+          <button class="btn btn--icon" id="btnSwitchCam" type="button" title="Switch camera" aria-label="Switch camera" hidden>⟲</button>
+        </div>
+        <div class="scan-controls__row scan-controls__row--split">
+          <button class="btn btn--quiet" id="btnRedoFace" type="button" disabled
+                  title="Scan the last face again">Redo last</button>
+          <button class="btn btn--quiet" id="btnManual" type="button"
+                  title="Skip the camera and set the colours yourself">By hand</button>
+          <button class="btn btn--quiet" id="btnDemo" type="button"
+                  title="Load a scrambled cube to try the solver">Demo cube</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ----------------------------------------------------------- review -->
+  <section class="panel panel--review" id="panel-review" hidden>
+    <div class="card net-card">
+      <div class="net-card__head">
+        <h2>Your cube, flattened</h2>
+        <p class="muted">Tap any sticker to correct it. Centres are fixed.</p>
+      </div>
+      <div class="net" id="net"></div>
+      <div class="net-legend">
+        <span class="chip" id="netLegend" hidden><i class="dot dot--suspect"></i> ringed = worth a second look</span>
+        <span class="chip" id="netCount"></span>
+      </div>
+    </div>
+
+    <aside class="review-side">
+      <div class="card pad">
+        <h3 class="side-title">Colour to paint with</h3>
+        <div class="palette" id="palette"></div>
+      </div>
+
+      <div id="reviewStatus"></div>
+
+      <div class="review-actions">
+        <button class="btn btn--primary btn--lg" id="btnSolve" type="button">Solve it</button>
+        <button class="btn" id="btnRescan" type="button">Scan again</button>
+      </div>
+
+      <div class="card pad cube-card">
+        <h3 class="side-title">In 3D</h3>
+        <div class="cube-holder" id="reviewCube"></div>
+        <p class="faint tiny">Drag to spin</p>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ------------------------------------------------------------ solve -->
+  <section class="panel panel--solve" id="panel-solve" hidden>
+    <div class="card solve-stage">
+      <div class="solve-stage__head">
+        <div>
+          <span class="tag" id="solveStageTag">Stage</span>
+          <h2 id="solveStageName">&nbsp;</h2>
+          <p class="muted" id="solveStageNote">&nbsp;</p>
+        </div>
+        <div class="solve-count">
+          <strong id="solveProgress">0 / 0</strong>
+          <span class="faint tiny">moves</span>
+        </div>
+      </div>
+
+      <div class="cube-holder cube-holder--big" id="solveCube"></div>
+
+      <div class="move-now">
+        <div class="move-now__glyph mono" id="moveGlyph">&mdash;</div>
+        <div class="move-now__text">
+          <strong id="moveTitle">Ready</strong>
+          <span class="muted" id="moveDetail">Press play, or step through with the arrows.</span>
+        </div>
+      </div>
+
+      <div class="player">
+        <button class="btn btn--icon" id="btnFirst" type="button" title="Back to the start" aria-label="Back to the start">⏮</button>
+        <button class="btn btn--icon" id="btnPrev" type="button" title="Previous move" aria-label="Previous move">◀</button>
+        <button class="btn btn--primary btn--lg" id="btnPlay" type="button">▶ Play</button>
+        <button class="btn btn--icon" id="btnNext" type="button" title="Next move" aria-label="Next move">▶</button>
+        <button class="btn btn--icon" id="btnLast" type="button" title="Jump to the end" aria-label="Jump to the end">⏭</button>
+      </div>
+    </div>
+
+    <aside class="solve-side">
+      <div class="card pad" id="holdCard">
+        <h3 class="side-title">Hold it like this</h3>
+        <p class="muted" id="holdText"></p>
+      </div>
+
+      <div class="card pad">
+        <div class="side-head">
+          <h3 class="side-title">The turns</h3>
+          <button class="btn btn--quiet btn--tiny" id="btnCopy" type="button">Copy</button>
+        </div>
+        <div class="stages" id="stages"></div>
+      </div>
+
+      <div class="solve-actions">
+        <button class="btn" id="btnBackReview" type="button">Back to colours</button>
+        <button class="btn btn--quiet" id="btnNewScan" type="button">Scan a new cube</button>
+      </div>
+    </aside>
+  </section>
+
+  <footer class="footer faint tiny">
+    <span id="tableNote"></span>
+  </footer>
+</div>
+
+<div class="busy" id="busy" hidden>
+  <div class="busy__box card">
+    <div class="busy__spinner"></div>
+    <strong id="busyText">Working&hellip;</strong>
+  </div>
+</div>
+
+<script src="js/cube.js"></script>
+<script src="js/solver.js"></script>
+<script src="js/colour.js"></script>
+<script src="js/cube3d.js"></script>
+<script src="js/scanner.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

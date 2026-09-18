@@ -126,11 +126,11 @@ while read -r id; do
 <head>
 <meta charset="utf-8">
 <title>$name</title>
-<meta http-equiv="refresh" content="0; url=apps/$id/">
-<link rel="canonical" href="apps/$id/">
+<meta http-equiv="refresh" content="0; url=apps/$id/index.html">
+<link rel="canonical" href="apps/$id/index.html">
 </head>
 <body style="margin:0;background:#0a0c11;color:#e9edf6;font-family:system-ui,sans-serif">
-<p style="padding:24px">Opening <a href="apps/$id/" style="color:#9d8dff">$name</a>&hellip;</p>
+<p style="padding:24px">Opening <a href="apps/$id/index.html" style="color:#9d8dff">$name</a>&hellip;</p>
 </body>
 </html>
 HTML

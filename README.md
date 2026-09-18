@@ -63,7 +63,7 @@ That copies `apps/_template/` to `apps/unit-converter/`, fills in the name and
 tagline, and adds an entry to `assets/js/registry.js`. Refresh the home page
 and the card is there. Editing the registry by hand works just as well.
 
-Two conventions keep the collection coherent as it grows:
+Three conventions keep the collection coherent as it grows:
 
 - **Use the shared tokens.** `assets/css/base.css` defines the colours, radii,
   shadows and the `.card` / `.btn` / `.chip` / `.notice` primitives. Apps add
@@ -71,6 +71,10 @@ Two conventions keep the collection coherent as it grows:
 - **Plain scripts, not modules.** Load them in dependency order with `<script>`
   tags. Modules would need a server for every app, including ones that would
   otherwise run straight off disk.
+- **Link to files, never folders.** Write `../../index.html`, not `../../`. A
+  web server turns a folder into its `index.html`; the Android WebView reads
+  files straight out of the APK and does not, and nor does `file://`.
+  `tests/site.test.cjs` enforces this.
 
 ## Tests
 
@@ -79,6 +83,9 @@ npm install          # once, only needed for the browser tests
 npm test             # engine tests, then browser tests
 ```
 
+- `tests/site.test.cjs` runs under plain `node`. It resolves every internal
+  link, checks the registry against the folders on disk, and checks the
+  offline cache version against `release/VERSION`.
 - `tests/solver.test.cjs` runs under plain `node` with no dependencies. It
   checks the cube model, then solves thousands of random cubes and verifies
   each solution actually solves the cube it was given. Pass a count for a

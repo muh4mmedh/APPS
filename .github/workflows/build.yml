@@ -28,6 +28,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Site checks
+        run: node tests/site.test.cjs
+
       - name: Engine tests
         run: node tests/solver.test.cjs 5000
 

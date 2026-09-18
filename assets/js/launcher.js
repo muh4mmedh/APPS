@@ -41,7 +41,9 @@
   function card(app) {
     var link = document.createElement('a');
     link.className = 'app-card';
-    link.href = 'apps/' + app.id + '/';
+    // Point at the file, not the folder: neither the Android asset
+    // loader nor file:// resolves a directory to its index.html.
+    link.href = 'apps/' + app.id + '/index.html';
     link.setAttribute('aria-label', app.name + ' — ' + app.tagline);
 
     link.appendChild(tile(app));
@@ -106,7 +108,7 @@
     if (!shown.length) {
       empty.textContent = needle
         ? 'Nothing matches “' + query + '”.'
-        : 'No apps yet. Run tools/new-app.sh to add the first one.';
+        : 'No apps here yet.';
     }
   }
 

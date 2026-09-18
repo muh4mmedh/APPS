@@ -16,7 +16,7 @@
     {
       "name": "Rubik's Solver",
       "short_name": "Rubik's",
-      "url": "apps/rubiks-solver/",
+      "url": "apps/rubiks-solver/index.html",
       "icons": [{ "src": "apps/rubiks-solver/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]

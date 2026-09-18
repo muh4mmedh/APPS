@@ -37,10 +37,21 @@ const TYPES = {
   '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png'
 };
 
+/*
+ * Deliberately strict about folders: only the site root resolves to
+ * index.html, and any other path ending in `/` is a 404.
+ *
+ * A normal web server would serve `apps/foo/` as `apps/foo/index.html`, which
+ * hid a bug — the Android WebView reads files straight out of the APK and has
+ * no such rule, so tapping an app in the installed app failed. Matching the
+ * stricter behaviour here means a folder link fails in the tests instead of
+ * on someone's phone.
+ */
 const server = createServer(async (req, res) => {
   try {
     let path = decodeURIComponent(req.url.split('?')[0]);
-    if (path.endsWith('/')) path += 'index.html';
+    if (path === '/') path = '/index.html';
+    else if (path.endsWith('/')) { res.writeHead(404).end('no directory listings'); return; }
     const file = join(ROOT, normalize(path).replace(/^([/\\])+/, ''));
     if (!file.startsWith(ROOT)) { res.writeHead(403).end(); return; }
     const body = await readFile(file);
@@ -140,7 +151,8 @@ console.log('\nlauncher');
   await page.goto(BASE + '/', { waitUntil: 'networkidle' });
   ok('page loads clean', problems.length === 0, problems.join(' | '));
   ok('one app card rendered', await page.locator('.app-card').count() === 1);
-  ok('card links to the app', (await page.locator('.app-card').first().getAttribute('href')) === 'apps/rubiks-solver/');
+  ok('card links to the app',
+    (await page.locator('.app-card').first().getAttribute('href')) === 'apps/rubiks-solver/index.html');
   ok('count chip reads 1 app', (await page.locator('#count').textContent()).trim() === '1 app');
   await page.fill('#search', 'camera');
   ok('search matches on tags', await page.locator('.app-card').count() === 1);
@@ -195,7 +207,7 @@ console.log('\ninstallable + offline');
 
   await context.setOffline(false);
   const appPage = await context.newPage();
-  await appPage.goto(BASE + '/apps/rubiks-solver/', { waitUntil: 'networkidle' });
+  await appPage.goto(BASE + '/apps/rubiks-solver/index.html', { waitUntil: 'networkidle' });
   const appManifest = await appPage.evaluate(async () => {
     const link = document.querySelector('link[rel="manifest"]');
     const data = await (await fetch(link.href)).json();
@@ -242,7 +254,7 @@ console.log('\nsolver — demo cube, review and playback');
 const page = await browser.newPage({ viewport: { width: 1280, height: 950 } });
 const problems = watch(page, 'solver');
 await page.addInitScript(FAKE_CAMERA);
-await page.goto(BASE + '/apps/rubiks-solver/', { waitUntil: 'networkidle' });
+await page.goto(BASE + '/apps/rubiks-solver/index.html', { waitUntil: 'networkidle' });
 ok('app loads clean', problems.length === 0, problems.join(' | '));
 ok('scan panel is the first screen', !(await page.locator('#panel-scan').isHidden()));
 ok('nine reading squares exist', await page.locator('.stage__cell').count() === 9);
@@ -251,6 +263,25 @@ ok('switch-camera button stays hidden before the camera starts',
   await page.locator('#btnSwitchCam').isHidden());
 await settle(page);
 await page.screenshot({ path: `${SHOTS}/2-scan-idle.png` });
+
+// Reaching the app the way a person does — tapping its card on the launcher.
+{
+  const launcher = await browser.newPage({ viewport: { width: 1100, height: 800 } });
+  const launcherProblems = [];
+  launcher.on('requestfailed', (r) => launcherProblems.push(r.url()));
+  await launcher.goto(BASE + '/', { waitUntil: 'networkidle' });
+  const cardHref = await launcher.locator('.app-card').first().getAttribute('href');
+  ok('card links straight to a file', cardHref.endsWith('/index.html'), cardHref);
+  await launcher.click('.app-card');
+  await launcher.waitForSelector('#panel-scan:not([hidden])', { timeout: 10000 });
+  ok('tapping a card opens the app', launcher.url().includes('/apps/rubiks-solver/'));
+  await launcher.click('.topbar .btn');
+  await launcher.waitForSelector('.app-card', { timeout: 10000 });
+  ok('"All apps" gets back to the launcher', await launcher.locator('.app-card').count() === 1);
+  ok('no failed requests navigating in and out', launcherProblems.length === 0,
+    launcherProblems.slice(0, 3).join(' | '));
+  await launcher.close();
+}
 
 await page.click('#btnDemo');
 await page.waitForSelector('#panel-review:not([hidden])');
@@ -455,7 +486,7 @@ console.log('\nmobile layout');
   const m = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const mProblems = watch(m, 'mobile');
   await m.addInitScript(FAKE_CAMERA);
-  await m.goto(BASE + '/apps/rubiks-solver/', { waitUntil: 'networkidle' });
+  await m.goto(BASE + '/apps/rubiks-solver/index.html', { waitUntil: 'networkidle' });
   const noScroll = await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   ok('step labels stay readable on a phone',
     await m.locator('.steps__item[data-goto="review"] .steps__label').isVisible());

@@ -79,7 +79,7 @@ public class MainActivity extends AppCompatActivity {
                     new ServiceWorkerClientCompat() {
                         @Override
                         public WebResourceResponse shouldInterceptRequest(WebResourceRequest request) {
-                            return loader.shouldInterceptRequest(request.getUrl());
+                            return serve(loader, request.getUrl());
                         }
                     });
         }
@@ -87,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                return loader.shouldInterceptRequest(request.getUrl());
+                return serve(loader, request.getUrl());
             }
 
             @Override
@@ -135,6 +135,24 @@ public class MainActivity extends AppCompatActivity {
         } else {
             web.loadUrl(START_URL);
         }
+    }
+
+    /**
+     * Serve one request out of the APK's assets.
+     *
+     * A web server answers a request for a folder with its index.html. The
+     * asset loader does not: asked for a directory it finds no such asset and
+     * returns an empty response, which the WebView reports as
+     * ERR_INVALID_RESPONSE. Links in the pages name index.html directly, and
+     * this covers anything that does not — a typed address, a link added
+     * later, a redirect.
+     */
+    private static WebResourceResponse serve(WebViewAssetLoader loader, Uri url) {
+        String path = url.getPath();
+        if (path != null && path.endsWith("/")) {
+            url = url.buildUpon().path(path + "index.html").build();
+        }
+        return loader.shouldInterceptRequest(url);
     }
 
     private boolean hasCameraPermission() {

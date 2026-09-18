@@ -22,18 +22,34 @@ A server is needed rather than opening the files directly, because browsers
 only grant camera access on a secure page (`https://…` or `localhost`). Apps
 that don't use the camera work fine straight off disk.
 
+## Installing it
+
+- **On a phone or desktop:** open the site and use *Add to Home Screen* (or the
+  Install button on the launcher). It installs as an app, holding all of them,
+  and keeps working offline once opened.
+- **As an Android app:** grab the `.apk` from the
+  [releases page](../../releases). One APK contains the launcher and every app.
+  Build details are in [`android/README.md`](android/README.md).
+
 ## Layout
 
 ```
 index.html              the launcher
+manifest.webmanifest    makes the collection installable
+sw.js                   offline support for every app
 assets/
   css/base.css          design tokens and shared primitives
   js/registry.js        the list of apps the launcher reads
   js/launcher.js        renders the app grid
+  js/install.js         service worker registration, install button
+  icons/                generated launcher icons
 apps/
   _template/            starter copied by tools/new-app.sh
   rubiks-solver/        one folder per app, self-contained
+android/                wraps the whole site as an installable APK
+release/                VERSION, packaging script, how to cut a release
 tools/new-app.sh        scaffold a new app and register it
+tools/make-icons.py     generate the web and Android icons
 tests/                  node tests, no build step
 ```
 
@@ -72,7 +88,17 @@ npm test             # engine tests, then browser tests
   runs — crop, mirror and all — and the colours the app reads are compared
   against the cube that was drawn. Screenshots land in `tests/screenshots/`.
 
-## Publishing
+## Releasing
+
+```sh
+release/build.sh        # zips for the site and each app, checksums, notes
+```
+
+Tagging is what publishes: push a `v*` tag and the `build` workflow runs the
+tests, builds the APK, and attaches everything to a GitHub Release. Full
+process in [`release/README.md`](release/README.md).
+
+## Hosting
 
 These are static files, so GitHub Pages serves them as-is: in the repository's
 **Settings → Pages**, set the source to this branch with the root folder. The

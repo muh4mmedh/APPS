@@ -151,6 +151,72 @@ console.log('\nlauncher');
   await page.close();
 }
 
+// ------------------------------------------------------------------- pwa
+console.log('\ninstallable + offline');
+{
+  const context = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+  const page = await context.newPage();
+  const problems = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+
+  const manifest = await page.evaluate(async () => {
+    const link = document.querySelector('link[rel="manifest"]');
+    if (!link) return null;
+    const res = await fetch(link.href);
+    const data = await res.json();
+    const icons = await Promise.all(data.icons.map(async (icon) => {
+      const url = new URL(icon.src, link.href).href;
+      const head = await fetch(url);
+      return head.ok;
+    }));
+    return { name: data.name, display: data.display, start: data.start_url,
+             icons: icons.every(Boolean), maskable: data.icons.some((i) => i.purpose === 'maskable'),
+             shortcuts: (data.shortcuts || []).length };
+  });
+  ok('launcher has a usable manifest', !!manifest && manifest.name === 'Apps' && manifest.display === 'standalone');
+  ok('every manifest icon actually loads', !!manifest && manifest.icons);
+  ok('a maskable icon is provided', !!manifest && manifest.maskable);
+  ok('manifest offers a shortcut to the app', !!manifest && manifest.shortcuts === 1);
+
+  const registered = await page.evaluate(() =>
+    navigator.serviceWorker.ready.then((r) => !!r.active).catch(() => false));
+  ok('service worker activates', registered);
+
+  // Reload so the worker is in control, then pull the network away entirely.
+  await page.reload({ waitUntil: 'networkidle' });
+  const controlled = await page.evaluate(() => !!navigator.serviceWorker.controller);
+  ok('service worker controls the page', controlled);
+
+  await context.setOffline(true);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const offlineCards = await page.locator('.app-card').count();
+  ok('launcher still works with no network', offlineCards === 1, String(offlineCards));
+
+  await context.setOffline(false);
+  const appPage = await context.newPage();
+  await appPage.goto(BASE + '/apps/rubiks-solver/', { waitUntil: 'networkidle' });
+  const appManifest = await appPage.evaluate(async () => {
+    const link = document.querySelector('link[rel="manifest"]');
+    const data = await (await fetch(link.href)).json();
+    return data.name;
+  });
+  ok("the solver has its own manifest", appManifest === "Rubik's Solver", String(appManifest));
+  await appPage.evaluate(() => navigator.serviceWorker.ready);
+  await appPage.reload({ waitUntil: 'networkidle' });
+  await context.setOffline(true);
+  await appPage.reload({ waitUntil: 'domcontentloaded' });
+  const offlineSolver = await appPage.evaluate(() => ({
+    cells: document.querySelectorAll('.stage__cell').length,
+    engine: typeof RS !== 'undefined' && typeof RS.Solver.solve === 'function'
+  }));
+  ok('the solver loads offline, engine included',
+    offlineSolver.cells === 9 && offlineSolver.engine, JSON.stringify(offlineSolver));
+  await context.setOffline(false);
+  ok('no page errors in the offline run', problems.length === 0, problems.join(' | '));
+  await context.close();
+}
+
 // ------------------------------------------------------------ solver: demo
 console.log('\nsolver — demo cube, review and playback');
 const page = await browser.newPage({ viewport: { width: 1280, height: 950 } });

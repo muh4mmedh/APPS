@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-root="./">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,6 +7,8 @@
 <meta name="description" content="A small collection of self-contained web apps.">
 <meta name="theme-color" content="#0a0c11">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141c'/%3E%3Crect x='6' y='6' width='8' height='8' rx='2' fill='%236f5cf6'/%3E%3Crect x='18' y='6' width='8' height='8' rx='2' fill='%2324d3a5'/%3E%3Crect x='6' y='18' width='8' height='8' rx='2' fill='%23ffbf3c'/%3E%3Crect x='18' y='18' width='8' height='8' rx='2' fill='%23fb5c6c'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icons/apps-192.png">
 <link rel="stylesheet" href="assets/css/base.css">
 <style>
   .hero { padding: 26px 0 30px; display: grid; gap: 14px; max-width: 620px; }
@@ -106,6 +108,7 @@
       <span class="search__icon" aria-hidden="true">⌕</span>
       <input id="search" type="search" placeholder="Search apps…" autocomplete="off" aria-label="Search apps">
     </label>
+    <button class="btn btn--primary" id="install" type="button" hidden>Install</button>
   </div>
 
   <div class="grid" id="grid"></div>
@@ -119,10 +122,16 @@
       <li>Refresh this page; the new card appears.</li>
     </ol>
     <p>The list lives in <code>assets/js/registry.js</code> if you would rather edit it directly.</p>
+    <p>
+      On a phone, use your browser&rsquo;s <em>Add to Home Screen</em> (or the Install button above)
+      and this page becomes an app of its own, holding all of them. There is an Android
+      build too &mdash; see <code>release/README.md</code>.
+    </p>
   </section>
 
 </div>
 <script src="assets/js/registry.js"></script>
 <script src="assets/js/launcher.js"></script>
+<script src="assets/js/install.js"></script>
 </body>
 </html>

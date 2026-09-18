@@ -1,3 +1,13 @@
 node_modules/
 tests/screenshots/
 .DS_Store
+
+# android build output
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+android/.kotlin/
+
+# release artifacts are built, not committed
+release/dist/

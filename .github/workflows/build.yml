@@ -91,36 +91,15 @@ jobs:
           APPS_KEY_PASSWORD: ${{ secrets.APPS_KEY_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Check the APK holds the web app
+      - name: Verify the APK
         run: |
           apk=$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)
           if [ -z "$apk" ]; then
             echo "no apk was produced"
             exit 1
           fi
-          echo "built: $apk"
           ls -lh "$apk"
-
-          # The point of the APK is that the whole site is inside it, so fail
-          # loudly rather than shipping an empty shell.
-          unzip -l "$apk" > /tmp/apk-list.txt
-          for needed in \
-            assets/www/index.html \
-            assets/www/manifest.webmanifest \
-            assets/www/apps/rubiks-solver/index.html \
-            assets/www/apps/rubiks-solver/js/solver.js \
-            assets/www/assets/css/base.css \
-            assets/www/assets/icons/apps-192.png ; do
-            if ! grep -q "$needed" /tmp/apk-list.txt; then
-              echo "missing from the apk: $needed"
-              exit 1
-            fi
-          done
-          if grep -q 'assets/www/apps/_template' /tmp/apk-list.txt; then
-            echo "the starter template should not ship inside the apk"
-            exit 1
-          fi
-          echo "apk contents look right"
+          python3 tools/verify-apk.py "$apk"
 
       - uses: actions/upload-artifact@v4
         with:

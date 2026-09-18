@@ -8,6 +8,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a release from release/VERSION'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -126,7 +131,10 @@ jobs:
   release:
     name: publish release
     needs: [test, android]
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Either a v* tag, or a manual run with "publish" ticked. The tag is
+    # created by the release itself in the manual case, so publishing never
+    # depends on being able to push a tag.
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.publish
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -152,8 +160,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" \
-            --title "Apps $version" \
-            --notes-file release/dist/notes.md \
-            release/dist/*.apk release/dist/*.zip release/dist/SHA256SUMS.txt
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="v$(tr -d ' \n\r' < release/VERSION)"
+          fi
+          version="${tag#v}"
+          files=(release/dist/*.apk release/dist/*.zip release/dist/SHA256SUMS.txt)
+
+          # Re-runnable: update the release if it is already there rather than
+          # failing, so a botched publish can simply be run again.
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "updating the existing $tag release"
+            gh release edit "$tag" --title "Apps $version" --notes-file release/dist/notes.md
+            gh release upload "$tag" "${files[@]}" --clobber
+          else
+            echo "creating the $tag release"
+            gh release create "$tag" \
+              --target "$GITHUB_SHA" \
+              --title "Apps $version" \
+              --notes-file release/dist/notes.md \
+              "${files[@]}"
+          fi
+          gh release view "$tag" --json tagName,assets \
+            --jq '"published \(.tagName) with \(.assets | length) files"'

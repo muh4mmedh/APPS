@@ -192,6 +192,11 @@ out.push('3. The camera permission is asked for the first time a cube is scanned
 out.push('');
 out.push('It is signed with a build key rather than a Play Store key, so Android shows the');
 out.push('usual warning about an app from outside the store.');
+out.push('');
+out.push('If a release was built without a signing key of its own, each build is signed');
+out.push('with a throwaway debug key, and Android will not install a new version over an');
+out.push('older one — uninstall first. Setting up a key once (see `release/README.md`)');
+out.push('makes updates work normally.');
 
 out.push('', '### Running the web version', '');
 out.push('Unzip and open `index.html` for anything that does not need a camera. Camera access');

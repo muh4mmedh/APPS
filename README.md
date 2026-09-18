@@ -94,9 +94,10 @@ npm test             # engine tests, then browser tests
 release/build.sh        # zips for the site and each app, checksums, notes
 ```
 
-Tagging is what publishes: push a `v*` tag and the `build` workflow runs the
-tests, builds the APK, and attaches everything to a GitHub Release. Full
-process in [`release/README.md`](release/README.md).
+To publish, either run the *build* workflow from the Actions tab with
+**Publish** ticked, or push a `v*` tag. Either way CI runs the tests, builds
+the APK, and attaches everything to a GitHub Release. Full process in
+[`release/README.md`](release/README.md).
 
 ## Hosting
 

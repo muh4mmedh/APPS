@@ -13,18 +13,22 @@ Everything published from this repo is built from here.
    The Android version name and code are derived from `release/VERSION`
    automatically.
 
-2. Commit, then tag and push:
+2. Commit, then publish either way:
+
+   **From the Actions tab.** Open the *build* workflow, *Run workflow*, tick
+   **Publish a release from release/VERSION**, run it. The tag is created by
+   the release itself, so nothing needs pushing.
 
    ```sh
+   # or, if you would rather tag
    git tag v1.0.0
    git push origin v1.0.0
    ```
 
-   The `build` workflow runs the tests, builds the APK, packages the zips and
-   publishes a GitHub Release with everything attached, using
-   `release/dist/notes.md` as the release text.
-
-That is the whole process — the tag is what turns a build into a release.
+Either route runs the tests, builds the APK, packages the zips and publishes a
+GitHub Release with everything attached, using `release/dist/notes.md` as the
+release text. Publishing is re-runnable: if the release already exists it is
+updated and its files replaced rather than failing.
 
 ## Building the artifacts by hand
 
@@ -60,6 +64,12 @@ Unsigned APKs cannot be installed, so a release build with no key supplied
 falls back to the debug key. That installs fine and is what the CI build
 produces by default; Android just shows the usual warning about an app from
 outside the Play Store.
+
+There is one catch worth knowing before you hand the APK around: a CI runner
+generates a fresh debug key each build, so Android will refuse to install a new
+version *over* an older one — it looks like a different app signed by someone
+else. Until you set up a key of your own, updating means uninstalling first.
+Setting one up takes a minute and fixes it permanently.
 
 To sign with your own key, make one once:
 

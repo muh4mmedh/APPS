@@ -374,7 +374,7 @@
 }
 .cube-holder--big { min-height: 290px; }
 
-.cube3d { perspective: 900px; cursor: grab; touch-action: none; }
+.cube3d { perspective: 1000px; cursor: grab; touch-action: none; }
 .cube3d.is-dragging { cursor: grabbing; }
 .cube3d__scene { position: relative; transform-style: preserve-3d; }
 .cube3d__body {
@@ -385,25 +385,47 @@
 }
 .cube3d.is-dragging .cube3d__body { transition: none; }
 
-.cube3d__face {
+/* One small cube, sitting in its slot. A turn rotates nine of these. */
+.cubie {
   position: absolute;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4%;
-  padding: 3.5%;
-  background: #05070b;
-  border-radius: 6%;
-  backface-visibility: hidden;
-  transition: filter 0.2s var(--ease);
+  top: 50%;
+  left: 50%;
+  margin-top: -16.6667%;
+  margin-left: -16.6667%;
+  transform-style: preserve-3d;
 }
+
+.cubie > i {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 9%;
+}
+
+/* The dark plastic you see inside the cube while a layer is open. */
+.cubie__inner { background: #0b0d12; }
+
 .cube3d__sticker {
-  border-radius: var(--sticker-radius);
   background: var(--sticker, var(--face-blank));
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
-  transition: background 0.2s var(--ease), transform 0.2s var(--ease);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  transition: background 0.18s var(--ease);
 }
-.cube3d__face.is-turning { filter: brightness(1.22) saturate(1.1); }
-.cube3d__sticker.is-turning { transform: scale(0.9); }
+.cube3d__sticker::after {
+  /* a slightly inset tile, so the cubie reads as plastic with a sticker on it */
+  content: "";
+  position: absolute;
+  inset: 7%;
+  border-radius: 13%;
+  background: inherit;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.cube3d__sticker.is-suspect {
+  box-shadow: inset 0 0 0 2px #fff, 0 0 0 2px var(--amber);
+}
+
+/* the layer the next move will turn */
+.cubie.is-next .cube3d__sticker { filter: brightness(1.18) saturate(1.06); }
+.cubie.is-turning .cube3d__sticker { filter: brightness(1.1); }
 
 /* ------------------------------------------------------------- solve panel */
 

@@ -368,12 +368,40 @@ ok('the read cube validates',
 ok('3D is the default view', !(await page.locator('#view3d').isHidden()));
 ok('the review cube has 54 stickers',
   await page.locator('#reviewCube .cube3d__sticker').count() === 54);
+ok('the cube is built from 26 cubies, so layers can turn',
+  await page.locator('#reviewCube .cubie').count() === 26);
 
 await page.click('.palette__swatch[data-face="D"]');
-const sticker = page.locator('#reviewCube .cube3d__face[data-face="F"] .cube3d__sticker').nth(0);
-await sticker.click();
+
+/*
+ * Pick a sticker that is genuinely on top at its own centre. The cube is real
+ * 3D, so plenty of stickers are partly behind their neighbours — a person taps
+ * what they can see, and elementFromPoint is exactly that test.
+ */
+const target = await page.evaluate(() => {
+  const stickers = [...document.querySelectorAll('#reviewCube .cube3d__sticker')];
+  for (const s of stickers) {
+    if (Number(s.dataset.index) % 9 === 4) continue;   // centres do something else
+    const box = s.getBoundingClientRect();
+    // A rotated element's bounding box is bigger than the shape inside it, so
+    // its centre can sit over a neighbour. Probe a few points and keep one
+    // that really lands on this sticker — the same thing a finger does.
+    for (const [fx, fy] of [[0.5, 0.5], [0.4, 0.4], [0.6, 0.6], [0.4, 0.6], [0.6, 0.4]]) {
+      const x = box.left + box.width * fx, y = box.top + box.height * fy;
+      if (document.elementFromPoint(x, y) === s) return { index: Number(s.dataset.index), x, y };
+    }
+  }
+  return null;
+});
+ok('some sticker is tappable from the front', !!target, target ? String(target.index) : 'none');
+const pickable = target.index;
+
+const sticker = page.locator(`#reviewCube .cube3d__sticker[data-index="${pickable}"]`);
+const wasFace = await sticker.getAttribute('data-face');
+await page.mouse.click(target.x, target.y);
 await page.waitForTimeout(150);
-ok('tapping a sticker in 3D paints it', await sticker.getAttribute('data-face') === 'D');
+ok('tapping a sticker in 3D paints it', await sticker.getAttribute('data-face') === 'D',
+  `${wasFace} -> ${await sticker.getAttribute('data-face')}`);
 ok('painting a wrong colour is caught',
   (await page.locator('#reviewStatus').textContent()).includes('9 times'));
 ok('solving is blocked while the cube is impossible',
@@ -382,26 +410,29 @@ ok('solving is blocked while the cube is impossible',
 await page.click('#btnViewFlat');
 ok('the flat view shows the same 54 stickers', await page.locator('.net__cell').count() === 54);
 ok('both views agree',
-  await page.locator('.net__cell[data-index="18"]').getAttribute('data-face') === 'D');
+  await page.locator(`.net__cell[data-index="${pickable}"]`).getAttribute('data-face') === 'D');
 
-await page.click(`.palette__swatch[data-face="${truth[18]}"]`);
-await page.click('.net__cell[data-index="18"]');
+await page.click(`.palette__swatch[data-face="${truth[pickable]}"]`);
+await page.click(`.net__cell[data-index="${pickable}"]`);
 await page.waitForTimeout(150);
 ok('putting it back restores a valid cube',
   (await page.locator('#reviewStatus').textContent()).includes('valid cube'));
 
-// spinning must not be mistaken for a tap
+// Spinning must not be mistaken for a tap. Dragging across the middle of the
+// cube would paint a sticker if the two were confused, so the check is simply
+// that nothing changed colour.
 await page.click('#btnView3d');
-const spinTarget = page.locator('#reviewCube .cube3d__face[data-face="F"] .cube3d__sticker').nth(2);
-const spinBox = await spinTarget.boundingBox();
-const spinBefore = await spinTarget.getAttribute('data-face');
-await page.mouse.move(spinBox.x + spinBox.width / 2, spinBox.y + spinBox.height / 2);
+const readCube = () => page.$$eval('#reviewCube .cube3d__sticker', (els) => els
+  .sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
+  .map((e) => e.dataset.face).join(''));
+const beforeDrag = await readCube();
+const cubeBox = await page.locator('#reviewCube .cube3d__scene').boundingBox();
+await page.mouse.move(cubeBox.x + cubeBox.width / 2, cubeBox.y + cubeBox.height / 2);
 await page.mouse.down();
-await page.mouse.move(spinBox.x + spinBox.width / 2 + 70, spinBox.y + spinBox.height / 2, { steps: 6 });
+await page.mouse.move(cubeBox.x + cubeBox.width / 2 + 70, cubeBox.y + cubeBox.height / 2, { steps: 6 });
 await page.mouse.up();
 await page.waitForTimeout(150);
-ok('dragging the cube spins it instead of painting',
-  await spinTarget.getAttribute('data-face') === spinBefore);
+ok('dragging the cube spins it instead of painting', await readCube() === beforeDrag);
 await settle(page);
 await page.screenshot({ path: `${SHOTS}/5-review.png` });
 
@@ -441,8 +472,10 @@ await page.click('#btnLast');
 await settle(page);
 const atEnd = await page.evaluate(() => ({
   stage: document.getElementById('solveStageName').textContent.trim(),
-  faces: Array.from(document.querySelectorAll('#solveCube .cube3d__face')).map((f) =>
-    new Set(Array.from(f.querySelectorAll('.cube3d__sticker')).map((s) => s.dataset.face)).size)
+  faces: [0, 1, 2, 3, 4, 5].map((f) => new Set(
+    Array.from(document.querySelectorAll('#solveCube .cube3d__sticker'))
+      .filter((s) => Math.floor(Number(s.dataset.index) / 9) === f)
+      .map((s) => s.dataset.face)).size)
 }));
 ok('the end of the solution says finished', atEnd.stage === 'Finished');
 ok('each face of the 3D cube ends one colour', atEnd.faces.every((n) => n === 1),
@@ -451,8 +484,72 @@ await page.screenshot({ path: `${SHOTS}/7-solved.png` });
 
 await page.click('#btnFirst');
 await page.keyboard.press('ArrowRight');
+await page.waitForTimeout(500);
 ok('arrow keys step through the turns',
   (await page.locator('#solveProgress').textContent()).trim().startsWith('1 /'));
+
+/*
+ * The turns have to actually turn. A layer is nine cubies rotating about an
+ * axis, so the test watches for exactly nine of them carrying a transform the
+ * others do not, sampled while the turn is in flight.
+ */
+console.log('\nsolver — turning animation');
+await page.click('#btnFirst');
+await page.waitForTimeout(400);
+const turning = await page.evaluate(async () => {
+  const frames = [];
+  document.getElementById('btnNext').click();
+  for (let i = 0; i < 14; i++) {
+    const moving = document.querySelectorAll('#solveCube .cubie.is-turning');
+    frames.push({
+      count: moving.length,
+      matrix: moving[0] ? getComputedStyle(moving[0]).transform : null
+    });
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  return frames;
+});
+const moving = turning.filter((f) => f.count > 0);
+ok('a turn moves exactly nine cubies', moving.length > 0 && moving.every((f) => f.count === 9),
+  moving.length ? `${moving[0].count} cubies over ${moving.length} frames` : 'nothing moved');
+ok('the layer rotates part-way through the turn',
+  new Set(moving.map((f) => f.matrix)).size > 2,
+  `${new Set(moving.map((f) => f.matrix)).size} distinct transforms`);
+await page.waitForTimeout(500);
+ok('the cubies are put back in their slots afterwards', await page.evaluate(() =>
+  document.querySelectorAll('#solveCube .cubie.is-turning').length === 0 &&
+  [...document.querySelectorAll('#solveCube .cubie')]
+    .every((c) => c.style.transform.startsWith('translate3d'))));
+
+// An animation that ends anywhere but the true next state would be worse than
+// no animation at all, so check each animated step against the engine.
+const drift = await page.evaluate(async () => {
+  const moves = [...document.querySelectorAll('.move')].map((m) => m.textContent);
+  const read = () => [...document.querySelectorAll('#solveCube .cube3d__sticker')]
+    .sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
+    .map((e) => e.dataset.face).join('');
+  document.getElementById('btnFirst').click();
+  await new Promise((r) => setTimeout(r, 300));
+  let state = RS.Cube.toArray(read());
+  const drifted = [];
+  // Long enough for a half turn, which takes half again as long as a quarter.
+  const settle = () => new Promise((r) => setTimeout(r, 800));
+  for (let i = 0; i < Math.min(moves.length, 10); i++) {
+    document.getElementById('btnNext').click();
+    await settle();
+    state = RS.Cube.applyMove(state, moves[i]);
+    if (read() !== state.join('')) drifted.push(moves[i]);
+  }
+  const wrong = drifted.length;
+  // and stepping back must undo the last one
+  document.getElementById('btnPrev').click();
+  await settle();
+  const back = read() === RS.Cube.applySeq(state, [RS.Cube.invertMove(moves[9])]).join('');
+  return { wrong, back, drifted };
+});
+ok('every animated turn lands on the state the engine says', drift.wrong === 0,
+  drift.wrong ? `drifted on: ${drift.drifted.join(', ')}` : '10 of 10');
+ok('stepping back turns the layer the other way', drift.back);
 
 // ------------------------------------------------- solver: the live camera
 console.log('\nsolver — the live camera still works');

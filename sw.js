@@ -10,7 +10,7 @@
  * VERSION must match release/VERSION; release/build.sh fails the build if it
  * does not, so a release can never ship a stale cache name.
  */
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const CACHE = 'apps-v' + VERSION;
 
 const SHELL = [

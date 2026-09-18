@@ -59,6 +59,8 @@
     playAt: 0,
     playing: false,
     playTimer: null,
+    turnMs: 320,
+    restMs: 260,
     mirrored: false,
     facing: 'environment',
     lastCapture: 0,
@@ -850,7 +852,7 @@
         btn.className = 'move';
         btn.dataset.move = String(index);
         btn.textContent = move;
-        btn.addEventListener('click', function () { goTo(index + 1); });
+        btn.addEventListener('click', function () { pause(); goTo(index + 1); });
         list.appendChild(btn);
       });
       running += stage.moves.length;
@@ -878,13 +880,16 @@
     };
   }
 
-  function renderPlayback() {
+  function renderPlayback(options) {
     var total = app.solution.moves.length;
     var at = app.playAt;
     var nextMove = at < total ? app.solution.moves[at] : null;
 
-    solveCube.setState(app.states[at]);
-    solveCube.highlight(nextMove);
+    // While a turn is playing the cube is showing it; only the text updates.
+    if (!options || !options.mid) {
+      solveCube.setState(app.states[at]);
+      solveCube.highlight(nextMove);
+    }
 
     var described = describeMove(nextMove);
     $('moveGlyph').textContent = described.glyph;
@@ -920,21 +925,61 @@
     $('btnPlay').textContent = app.playing ? '❚❚ Pause' : '▶ Play';
   }
 
-  function goTo(index) {
-    app.playAt = Math.max(0, Math.min(app.solution.moves.length, index));
-    renderPlayback();
-    if (app.playAt >= app.solution.moves.length) pause();
+  /**
+   * Move to a point in the solution.
+   *
+   * A single step turns the layer for real; anything else (a jump, a click on
+   * a distant move) snaps, because animating twenty turns to get somewhere is
+   * not what the person asked for.
+   */
+  function goTo(index, options) {
+    var total = app.solution.moves.length;
+    var target = Math.max(0, Math.min(total, index));
+    var from = app.playAt;
+    if (target === from) return Promise.resolve();
+
+    var animate = (!options || options.animate !== false) && Math.abs(target - from) === 1;
+    app.playAt = target;
+
+    if (!animate) {
+      solveCube.setState(app.states[target]);
+      renderPlayback();
+      if (target >= total) pause();
+      return Promise.resolve();
+    }
+
+    // Stepping back undoes the move that got here, so it turns the other way.
+    var forward = target > from;
+    var move = forward ? app.solution.moves[from] : app.solution.moves[target];
+    var turn = forward ? move : Cube.invertMove(move);
+
+    renderPlayback({ mid: true });
+    return solveCube.turn(turn, app.states[target], app.turnMs).then(function () {
+      renderPlayback();
+      if (app.playAt >= total) pause();
+    });
   }
 
   function play() {
     if (app.playing || app.playAt >= app.solution.moves.length) return;
     app.playing = true;
-    app.playTimer = setInterval(function () { goTo(app.playAt + 1); }, 800);
     renderPlayback();
+    step();
   }
+
+  /** One turn, then a pause to read it, then the next. */
+  function step() {
+    if (!app.playing) return;
+    if (app.playAt >= app.solution.moves.length) { pause(); return; }
+    goTo(app.playAt + 1).then(function () {
+      if (!app.playing) return;
+      app.playTimer = setTimeout(step, app.restMs);
+    });
+  }
+
   function pause() {
     app.playing = false;
-    if (app.playTimer) clearInterval(app.playTimer);
+    if (app.playTimer) clearTimeout(app.playTimer);
     app.playTimer = null;
     if (app.solution) renderPlayback();
   }
@@ -1136,10 +1181,10 @@
     $('btnRescan').addEventListener('click', function () { setStep('scan'); refreshScan(); });
 
     // playback
-    $('btnFirst').addEventListener('click', function () { pause(); goTo(0); });
+    $('btnFirst').addEventListener('click', function () { pause(); goTo(0, { animate: false }); });
     $('btnPrev').addEventListener('click', function () { pause(); goTo(app.playAt - 1); });
     $('btnNext').addEventListener('click', function () { pause(); goTo(app.playAt + 1); });
-    $('btnLast').addEventListener('click', function () { pause(); goTo(app.solution.moves.length); });
+    $('btnLast').addEventListener('click', function () { pause(); goTo(app.solution.moves.length, { animate: false }); });
     $('btnPlay').addEventListener('click', function () { app.playing ? pause() : play(); });
     $('btnCopy').addEventListener('click', function () {
       var text = app.solution.moves.join(' ');

@@ -108,13 +108,34 @@ js/cube.js          cube model, moves, validation
 js/solver.js        the solver and its search tables
 js/colour.js        camera pixels to cube colours
 js/scanner.js       camera access and frame sampling
-js/cube3d.js        the draggable 3D cube (DOM and CSS transforms, no WebGL)
+js/cube3d.js        the 3D cube: 26 cubies, so layers really turn
 js/app.js           screens, camera loop, playback
 ```
 
 `js/cube.js` derives every move permutation from 3D geometry when it loads
 instead of using written-out tables, so the facelet layout and the moves cannot
 drift apart.
+
+## Turning
+
+The cube is built from 26 small cubes, not six flat faces. Six faces render
+fine and cannot animate: a turn moves stickers belonging to five different
+faces, so no element represents "the layer that rotates". With cubies, a turn
+is what it is on a real cube — nine of them swinging together about an axis,
+with dark plastic showing inside as the layer opens.
+
+When the turn ends the cubies snap back to their slots and the colours are
+repainted from the new state; the cubies are fixed positions and it is the
+colours that travel. Landing exactly where the new state begins makes the two
+indistinguishable. Stepping backwards turns the layer the other way; jumping
+several moves at once snaps, rather than animating twenty turns to get there.
+
+Which way each face turns on screen had to be derived rather than guessed:
+model space has y up, CSS has y down, so "clockwise looking at this face" is
+not simply a positive CSS rotation. Each direction comes from what the move
+does to the cube — an R turn carries the top face to the back — and the tests
+check that every animated turn lands on the state the engine says it should,
+because an animation that ends somewhere else is worse than none.
 
 ## Notes and limits
 

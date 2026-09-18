@@ -12,6 +12,21 @@
                location.hostname === 'localhost' ||
                location.hostname === '127.0.0.1';
 
+  // Inside the Android app the files are already on the device, so a service
+  // worker buys nothing and only adds a way for things to go wrong. Stand down
+  // there, and clear out any worker an earlier version of the app registered.
+  var inAndroidShell = navigator.userAgent.indexOf('AppsAndroidShell') >= 0;
+  if (inAndroidShell) {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+      navigator.serviceWorker.getRegistrations()
+        .then(function (registrations) {
+          registrations.forEach(function (registration) { registration.unregister(); });
+        })
+        .catch(function () { /* nothing to clean up */ });
+    }
+    return;
+  }
+
   if ('serviceWorker' in navigator && secure) {
     window.addEventListener('load', function () {
       // The worker lives at the site root, whichever page registers it.

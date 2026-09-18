@@ -69,6 +69,15 @@ android {
 }
 
 dependencies {
+    /*
+     * These androidx libraries pull in two different Kotlin stdlib lines, and
+     * since Kotlin 1.8 the jdk7/jdk8 artifacts were folded into the main one —
+     * so having both on the classpath means thousands of duplicate classes and
+     * a failed build. The BOM aligns every kotlin-stdlib* to one version, at
+     * which point jdk7/jdk8 resolve to empty shims.
+     */
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.9.24')
+
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.core:core:1.13.1'
     // WebViewAssetLoader: serves the assets over https so the page counts as a

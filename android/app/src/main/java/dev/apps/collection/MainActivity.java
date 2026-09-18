@@ -1,12 +1,11 @@
 package dev.apps.collection;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
-import android.view.View;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -19,7 +18,10 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.webkit.ServiceWorkerClientCompat;
+import androidx.webkit.ServiceWorkerControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
+import androidx.webkit.WebViewFeature;
 
 /**
  * Hosts the whole app collection in a WebView.
@@ -36,6 +38,8 @@ public class MainActivity extends AppCompatActivity {
     private static final String START_URL =
             "https://appassets.androidplatform.net/assets/www/index.html";
     private static final int CAMERA_REQUEST = 1;
+    /** The page looks for this to tell it is running inside the APK. */
+    private static final String SHELL_TAG = "AppsAndroidShell";
 
     private WebView web;
     private PermissionRequest pendingRequest;
@@ -59,6 +63,26 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        settings.setUserAgentString(settings.getUserAgentString() + " " + SHELL_TAG);
+
+        /*
+         * Requests a service worker makes do not pass through the WebViewClient
+         * below — they need their own client. Without this, a service worker
+         * would try to reach appassets.androidplatform.net over the real
+         * network, which does not exist, and the page it served would be blank.
+         * The page also stands down its own worker inside the shell (there is
+         * nothing to cache when the files are already local), so this is the
+         * backstop for a worker registered by an earlier version.
+         */
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE)) {
+            ServiceWorkerControllerCompat.getInstance().setServiceWorkerClient(
+                    new ServiceWorkerClientCompat() {
+                        @Override
+                        public WebResourceResponse shouldInterceptRequest(WebResourceRequest request) {
+                            return loader.shouldInterceptRequest(request.getUrl());
+                        }
+                    });
+        }
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -72,7 +96,7 @@ public class MainActivity extends AppCompatActivity {
                 // Keep our own pages in here; hand anything else to the browser.
                 if ("appassets.androidplatform.net".equals(url.getHost())) return false;
                 try {
-                    startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, url));
+                    startActivity(new Intent(Intent.ACTION_VIEW, url));
                 } catch (Exception ignored) {
                     return false;
                 }
@@ -103,12 +127,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Let the page use the full screen behind the system bars.
+        // Match the site's background so there is no white flash on launch.
         web.setBackgroundColor(0xFF0A0C11);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            View decor = getWindow().getDecorView();
-            decor.setSystemUiVisibility(decor.getSystemUiVisibility());
-        }
 
         if (state != null) {
             web.restoreState(state);

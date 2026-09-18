@@ -215,6 +215,26 @@ console.log('\ninstallable + offline');
   await context.setOffline(false);
   ok('no page errors in the offline run', problems.length === 0, problems.join(' | '));
   await context.close();
+
+  /*
+   * Inside the Android app the files are already on the device, and a service
+   * worker there would try to fetch from the asset host over the real network
+   * and serve a blank page. The page detects the shell by its user agent and
+   * stands down, so check that with a user agent that looks like the shell.
+   */
+  const shell = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36 AppsAndroidShell'
+  });
+  const shellPage = await shell.newPage();
+  await shellPage.goto(BASE + '/', { waitUntil: 'networkidle' });
+  await shellPage.waitForTimeout(600);
+  const shellWorkers = await shellPage.evaluate(() =>
+    navigator.serviceWorker.getRegistrations().then((r) => r.length));
+  ok('no service worker is registered inside the android shell',
+    shellWorkers === 0, String(shellWorkers));
+  ok('the launcher still renders inside the android shell',
+    await shellPage.locator('.app-card').count() === 1);
+  await shell.close();
 }
 
 // ------------------------------------------------------------ solver: demo

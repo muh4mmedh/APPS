@@ -4,41 +4,63 @@ Show each of the six faces to your camera, check what it read, then follow the
 turns. Everything happens in the browser — the camera frames never leave the
 device, and there is no server, build step or dependency.
 
-## Reading colours off a camera
+## Your cube's colours
 
-Sticker colours are mostly a lighting problem. Red and orange sit close
-together in hue, white under warm light looks cream, and one side of the cube
-is usually brighter than the other. Fixed hue thresholds get this wrong often
-enough to be irritating.
+Not every cube is the usual six colours — the Japanese scheme swaps blue and
+yellow, and pastel, neon and re-stickered cubes are common. So the palette is
+six hex values you can edit, with presets to start from, and it is used both to
+draw the cube and to read your photos. Centres are editable too: setting one to
+another face's colour trades the two, which is the fix when the faces came out
+assigned to the wrong sides.
 
-Two things make it reliable instead:
+## Reading colours off photographs
 
-**Brightness is divided out.** Lighting is largely a multiplier, so each sample
-is rescaled to a fixed total brightness before being compared. In simulated
-scans this alone took sticker errors from about 1% down to near zero. A little
-of the absolute colour is kept in the comparison, which is what separates a
-white sticker from a washed-out coloured one.
+One photo per face, then drag four corners onto the face. A still photo beats a
+live feed here: with a camera you are holding a cube in one hand and a phone in
+the other, aiming at a moving image, and whatever it grabs, it grabs. With a
+photo you take your time, and the colours being read are shown in each cell
+while you drag. (The live camera is still there for anyone who prefers it.)
 
-**The final read is one decision, not 54.** A cube has exactly nine stickers of
-each colour, and the six centres show what those colours look like *in this
-room, in this light*. So matching is an assignment problem: put 54 samples into
-6 groups of exactly 9 at the lowest total colour distance, solved exactly with
-min-cost flow. A red sticker that looks slightly orange gets pushed back into
-the red group when the orange group is already full of better candidates.
+Six photos means six lighting conditions, which is the real difficulty — the
+same white sticker is cream under a lamp and blue-ish in shade, so comparing a
+sticker from one photo against a reference from another compares two different
+things. Three facts do the work:
 
-Against simulated scans — uneven lighting, a warm cast, camera noise, and each
-face lit differently — this reads 0.00–0.17% of stickers wrong, where deciding
-each sticker on its own by nearest centre gets 2.8–7.5% wrong under the same
-conditions. On the hardest of those scenarios that is 479 cubes in 500 read
-perfectly, against 66 in 500.
+- **A centre cannot move.** The centre of the face you called "up" *is* that
+  face's colour, by definition, so every photo contains one sticker whose true
+  colour is known. That is a free, exact colour correspondence per photo.
+- **Lighting is close to a per-channel multiplier**, so one gain per channel per
+  photo covers most of it — fitted in linear light, where the multiplication
+  actually holds. A plane fitted across each face covers the rest, which is the
+  shape a single lamp off to one side really makes.
+- **A cube has exactly nine of each colour**, so the final read is one balanced
+  assignment over all 54, solved exactly with min-cost flow.
 
-The one case it cannot rescue is a genuinely dark frame, where sensor noise is
-large next to the colour itself; the app detects that and says so rather than
-guessing.
+They are circular — the gains need the assignment, the assignment needs the
+gains — so it alternates between them until the assignment stops changing.
 
-Stickers whose group was a close call are ringed on the review screen, and every
-sticker stays editable, because a camera will occasionally misread one and
-arguing with it is worse than tapping it.
+One more trick doubles the accuracy for free. Two sets of reference colours are
+worth trying: the palette you stated (better on an unusual cube) and references
+estimated from the photos (better on an ordinary one, because they adapt to the
+room). Which wins cannot be known in advance, but it *can* be checked
+afterwards, because a misread almost always describes a cube that cannot exist.
+So it tries both and keeps the one that describes a real cube.
+
+Measured over 500 identical simulated cubes per case, stickers read wrong:
+
+| | one pass (old) | references stated | references estimated | both, keep the valid one |
+| --- | --- | --- | --- | --- |
+| even light | 0.02% | 0.00% | 0.01% | **0.00%** |
+| photo-to-photo lighting | 0.51% | 0.36% | 0.29% | **0.14%** |
+| dim, noisy, glaring | 4.86% | 5.26% | 3.93% | **3.80%** |
+| pastel cube, mixed light | 9.07% | 4.59% | 6.51% | **4.36%** |
+
+In mixed lighting that is 98% of cubes read perfectly, against 91% before. Dim
+or glaring light stays genuinely hard, and a low-contrast cube stays harder than
+a standard one — the pastel preset's closest two colours sit 19 apart where the
+standard scheme's sit 42. Neither is papered over: the app warns when a palette
+is low-contrast, rings the stickers it was unsure of, says which photo needed an
+unusual amount of correction, and lets any sticker be corrected in either view.
 
 ## Solving
 

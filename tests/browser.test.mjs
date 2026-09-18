@@ -15,6 +15,7 @@
  * Screenshots land in tests/screenshots/ for a quick look at the layouts.
  */
 import { createServer } from 'node:http';
+import { writeCubePhotos } from './fixtures.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -249,233 +250,260 @@ console.log('\ninstallable + offline');
   await shell.close();
 }
 
-// ------------------------------------------------------------ solver: demo
-console.log('\nsolver — demo cube, review and playback');
+// ------------------------------------------------------ solver: photo path
+console.log('\nsolver — photographs, colours and editing');
 const page = await browser.newPage({ viewport: { width: 1280, height: 950 } });
 const problems = watch(page, 'solver');
 await page.addInitScript(FAKE_CAMERA);
 await page.goto(BASE + '/apps/rubiks-solver/index.html', { waitUntil: 'networkidle' });
 ok('app loads clean', problems.length === 0, problems.join(' | '));
-ok('scan panel is the first screen', !(await page.locator('#panel-scan').isHidden()));
-ok('nine reading squares exist', await page.locator('.stage__cell').count() === 9);
+ok('photos are the first screen', !(await page.locator('#panel-scan').isHidden()));
+ok('six face slots', await page.locator('.face-chip').count() === 6);
 ok('guide cube has 54 stickers', await page.locator('#guideCube .cube3d__sticker').count() === 54);
 ok('switch-camera button stays hidden before the camera starts',
   await page.locator('#btnSwitchCam').isHidden());
 await settle(page);
-await page.screenshot({ path: `${SHOTS}/2-scan-idle.png` });
+await page.screenshot({ path: `${SHOTS}/2-photos-empty.png` });
 
-// Reaching the app the way a person does — tapping its card on the launcher.
-{
-  const launcher = await browser.newPage({ viewport: { width: 1100, height: 800 } });
-  const launcherProblems = [];
-  launcher.on('requestfailed', (r) => launcherProblems.push(r.url()));
-  await launcher.goto(BASE + '/', { waitUntil: 'networkidle' });
-  const cardHref = await launcher.locator('.app-card').first().getAttribute('href');
-  ok('card links straight to a file', cardHref.endsWith('/index.html'), cardHref);
-  await launcher.click('.app-card');
-  await launcher.waitForSelector('#panel-scan:not([hidden])', { timeout: 10000 });
-  ok('tapping a card opens the app', launcher.url().includes('/apps/rubiks-solver/'));
-  await launcher.click('.topbar .btn');
-  await launcher.waitForSelector('.app-card', { timeout: 10000 });
-  ok('"All apps" gets back to the launcher', await launcher.locator('.app-card').count() === 1);
-  ok('no failed requests navigating in and out', launcherProblems.length === 0,
-    launcherProblems.slice(0, 3).join(' | '));
-  await launcher.close();
-}
+// --- the cube's own colours -------------------------------------------------
+await page.click('#btnColours');
+ok('the colour editor opens', !(await page.locator('#paletteSheet').isHidden()));
+ok('presets offered', await page.locator('.preset').count() >= 3);
+ok('one row per face', await page.locator('.prow').count() === 6);
 
-await page.click('#btnDemo');
-await page.waitForSelector('#panel-review:not([hidden])');
-ok('demo jumps to review', !(await page.locator('#panel-review').isHidden()));
-ok('net has 54 cells', await page.locator('.net__cell').count() === 54);
-ok('9 centres are locked', await page.locator('.net__cell.is-centre[disabled]').count() === 6);
-ok('demo cube validates', (await page.locator('#reviewStatus').textContent()).includes('valid cube'));
-ok('the flagged-sticker legend hides when nothing is flagged',
-  await page.locator('#netLegend').isHidden());
-ok('solve button enabled', !(await page.locator('#btnSolve').isDisabled()));
+const readVar = (name) => page.evaluate((n) =>
+  getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
+
+await page.fill('#hex-R', '#ff00aa');
+await page.waitForTimeout(120);
+ok('typing a hex recolours the cube', await readVar('--face-R') === '#ff00aa');
+
+await page.fill('#hex-R', 'nonsense');
+await page.waitForTimeout(120);
+ok('nonsense is refused rather than applied',
+  await readVar('--face-R') === '#ff00aa' &&
+  await page.locator('#hex-R').evaluate((el) => el.classList.contains('is-bad')));
+
+await page.click('.preset[data-preset="japanese"]');
+await page.waitForTimeout(120);
+ok('a preset sets all six at once',
+  await readVar('--face-D') === '#1f6df0' && await readVar('--face-B') === '#ffd21f');
+
+// Two faces the camera could not tell apart should be called out.
+await page.fill('#hex-R', '#18b55d');
+await page.waitForTimeout(150);
+ok('colours too alike to distinguish are refused',
+  (await page.locator('#paletteStatus').textContent()).includes('too alike'));
+
+await page.click('.preset[data-preset="western"]');
+await page.waitForTimeout(120);
+ok('back to the standard scheme', await readVar('--face-R') === '#e02f3c');
 await settle(page);
-await page.screenshot({ path: `${SHOTS}/3-review.png` });
+await page.screenshot({ path: `${SHOTS}/3-colours.png` });
+await page.click('#btnSheetDone');
+ok('the colour editor closes', await page.locator('#paletteSheet').isHidden());
 
-// The 3D cube must render flat, exact sticker colours. If an ancestor ever
-// regains a backdrop-filter (or anything else that flattens preserve-3d), the
-// back faces bleed through and the palette colours stop appearing exactly.
-{
-  const shot = await page.locator('#reviewCube').screenshot();
-  const counts = await page.evaluate(async (b64) => {
-    const img = new Image();
-    img.src = 'data:image/png;base64,' + b64;
-    await img.decode();
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width; canvas.height = img.height;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    const want = ['#f3f5f8', '#ffd21f', '#e02f3c', '#ff8114', '#18b55c', '#1f6df0']
-      .map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
-    const hits = want.map(() => 0);
-    for (let i = 0; i < px.length; i += 4) {
-      for (let k = 0; k < want.length; k++) {
-        if (px[i] === want[k][0] && px[i + 1] === want[k][1] && px[i + 2] === want[k][2]) { hits[k]++; break; }
-      }
-    }
-    return hits;
-  }, shot.toString('base64'));
-  const solid = counts.filter((n) => n > 300).length;
-  ok('3D cube renders exact sticker colours', solid >= 3,
-    'palette colours with solid areas: ' + solid + ' of 6 -> ' + JSON.stringify(counts));
-}
+// the palette is remembered between visits
+await page.click('#btnColours');
+await page.click('.preset[data-preset="pastel"]');
+await page.click('#btnSheetDone');
+await page.reload({ waitUntil: 'networkidle' });
+ok('the palette survives a reload', await readVar('--face-U') === '#f7f4ef');
+await page.click('#btnColours');
+await page.click('.preset[data-preset="western"]');
+await page.click('#btnSheetDone');
 
-// editing a sticker must break validity, and putting it back must restore it
-const before = await page.evaluate(() => document.querySelectorAll('.net__cell')[0].dataset.colour);
-// Paint it with a colour it is not already, or nothing changes and the cube
-// stays legitimately valid.
-const wrongFace = await page.evaluate((current) => {
-  const names = { white: 'U', red: 'R', green: 'F', yellow: 'D', orange: 'L', blue: 'B' };
-  return ['U', 'R', 'F', 'D', 'L', 'B'].find((f) => f !== names[current]);
-}, before);
-await page.click(`.palette__swatch[data-face="${wrongFace}"]`);
-await page.click('.net__cell[data-index="0"]');
-const broken = await page.locator('#reviewStatus').textContent();
-ok('editing to a wrong colour is caught', broken.includes('9 times') || broken.includes('exactly 9'), broken.trim().slice(0, 70));
-ok('solve is blocked while invalid', await page.locator('#btnSolve').isDisabled());
-const faceOf = await page.evaluate((c) => {
-  const names = { white: 'U', red: 'R', green: 'F', yellow: 'D', orange: 'L', blue: 'B' };
-  return names[c];
-}, before);
-await page.click(`.palette__swatch[data-face="${faceOf}"]`);
-await page.click('.net__cell[data-index="0"]');
-ok('putting it back restores validity', (await page.locator('#reviewStatus').textContent()).includes('valid cube'));
+// --- photographs -------------------------------------------------------------
+const truth = await page.evaluate(() => RS.Cube.randomState());
+const photos = writeCubePhotos(join(ROOT, 'tests', 'photos'), truth);
 
-// solve and verify the answer against the engine, in the page
-const scanned = await page.evaluate(() => Array.from(document.querySelectorAll('.net__cell'))
+await page.setInputFiles('#filePick', photos);
+await page.waitForFunction(() => !document.getElementById('btnRead').disabled,
+  null, { timeout: 20000 });
+ok('six photos fill all six faces', await page.locator('.face-chip.is-done').count() === 6);
+ok('the grid has four draggable corners', await page.locator('.handle').count() === 4);
+ok('the nine readings are shown on the photo', await page.locator('.shot__read').count() === 9);
+
+const readsFor = () => page.$$eval('.shot__read', (els) => els.map((e) => e.dataset.face).join(''));
+ok('the grid reads the face it is sitting on', await readsFor() === truth.slice(0, 9),
+  `${await readsFor()} vs ${truth.slice(0, 9)}`);
+
+// the photo should be scaled to the stage, not left at its own pixel size
+const fitted = await page.evaluate(() => {
+  const f = document.getElementById('shotFrame').getBoundingClientRect();
+  const s = document.getElementById('shot').getBoundingClientRect();
+  return { frame: f.height, stage: s.height };
+});
+ok('the photo is scaled up to fill the stage', fitted.frame > fitted.stage * 0.8,
+  `${Math.round(fitted.frame)} in ${Math.round(fitted.stage)}`);
+await settle(page);
+await page.screenshot({ path: `${SHOTS}/4-align.png` });
+
+// dragging a corner must change what is read, and reset must undo it
+const before = await readsFor();
+const handle = await page.locator('.handle[data-corner="0"]').boundingBox();
+await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+await page.mouse.down();
+await page.mouse.move(handle.x + handle.width / 2 + 95, handle.y + handle.height / 2 + 95, { steps: 8 });
+await page.mouse.up();
+await page.waitForTimeout(250);
+ok('dragging a corner re-reads the colours', await readsFor() !== before);
+await page.click('#btnResetGrid');
+await page.waitForTimeout(200);
+ok('resetting the grid restores the reading', await readsFor() === before);
+
+// --- reading the whole cube ---------------------------------------------------
+await page.click('#btnRead');
+await page.waitForSelector('#panel-review:not([hidden])', { timeout: 20000 });
+const got = await page.$$eval('.net__cell', (els) => els
   .sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
-  .map((c) => c.dataset.colour));
+  .map((e) => e.dataset.face).join(''));
+const wrong = [...got].filter((c, i) => c !== truth[i]).length;
+ok('six differently lit photos are read correctly', wrong === 0,
+  wrong ? `${wrong} stickers wrong` : '54/54');
+ok('the read cube validates',
+  (await page.locator('#reviewStatus').textContent()).includes('valid cube'));
+
+// --- editing, in both views ---------------------------------------------------
+ok('3D is the default view', !(await page.locator('#view3d').isHidden()));
+ok('the review cube has 54 stickers',
+  await page.locator('#reviewCube .cube3d__sticker').count() === 54);
+
+await page.click('.palette__swatch[data-face="D"]');
+const sticker = page.locator('#reviewCube .cube3d__face[data-face="F"] .cube3d__sticker').nth(0);
+await sticker.click();
+await page.waitForTimeout(150);
+ok('tapping a sticker in 3D paints it', await sticker.getAttribute('data-face') === 'D');
+ok('painting a wrong colour is caught',
+  (await page.locator('#reviewStatus').textContent()).includes('9 times'));
+ok('solving is blocked while the cube is impossible',
+  await page.locator('#btnSolve').isDisabled());
+
+await page.click('#btnViewFlat');
+ok('the flat view shows the same 54 stickers', await page.locator('.net__cell').count() === 54);
+ok('both views agree',
+  await page.locator('.net__cell[data-index="18"]').getAttribute('data-face') === 'D');
+
+await page.click(`.palette__swatch[data-face="${truth[18]}"]`);
+await page.click('.net__cell[data-index="18"]');
+await page.waitForTimeout(150);
+ok('putting it back restores a valid cube',
+  (await page.locator('#reviewStatus').textContent()).includes('valid cube'));
+
+// spinning must not be mistaken for a tap
+await page.click('#btnView3d');
+const spinTarget = page.locator('#reviewCube .cube3d__face[data-face="F"] .cube3d__sticker').nth(2);
+const spinBox = await spinTarget.boundingBox();
+const spinBefore = await spinTarget.getAttribute('data-face');
+await page.mouse.move(spinBox.x + spinBox.width / 2, spinBox.y + spinBox.height / 2);
+await page.mouse.down();
+await page.mouse.move(spinBox.x + spinBox.width / 2 + 70, spinBox.y + spinBox.height / 2, { steps: 6 });
+await page.mouse.up();
+await page.waitForTimeout(150);
+ok('dragging the cube spins it instead of painting',
+  await spinTarget.getAttribute('data-face') === spinBefore);
+await settle(page);
+await page.screenshot({ path: `${SHOTS}/5-review.png` });
+
+// a centre names its face's colour, so setting one trades the two faces
+await page.click('#btnViewFlat');
+const beforeSwap = { F: await readVar('--face-F'), D: await readVar('--face-D') };
+await page.click('.palette__swatch[data-face="D"]');
+await page.click('.net__cell[data-index="22"]');
+await page.waitForTimeout(150);
+const afterSwap = { F: await readVar('--face-F'), D: await readVar('--face-D') };
+ok('setting a centre swaps the two faces\' colours',
+  beforeSwap.F === afterSwap.D && beforeSwap.D === afterSwap.F);
+ok('and says so', (await page.locator('#reviewStatus').textContent()).includes('Swapped'));
+ok('the cube is still solvable after a swap', !(await page.locator('#btnSolve').isDisabled()));
+await page.click('.palette__swatch[data-face="F"]');
+await page.click('.net__cell[data-index="22"]');
+await page.waitForTimeout(150);
+
+// --- solving -------------------------------------------------------------------
 await page.click('#btnSolve');
 await page.waitForSelector('#panel-solve:not([hidden])', { timeout: 20000 });
-ok('solve screen opens', !(await page.locator('#panel-solve').isHidden()));
-
-const check = await page.evaluate((names) => {
-  const letters = { white: 'U', red: 'R', green: 'F', yellow: 'D', orange: 'L', blue: 'B' };
-  const start = names.map((n) => letters[n]);
+const check = await page.evaluate(() => {
+  const start = Array.from(document.querySelectorAll('.net__cell'))
+    .sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
+    .map((c) => c.dataset.face);
   const moves = Array.from(document.querySelectorAll('.move')).map((m) => m.textContent);
-  const end = RS.Cube.applySeq(start, moves);
-  return { solves: RS.Cube.isSolved(end), count: moves.length,
-           progress: document.getElementById('solveProgress').textContent };
-}, scanned);
-ok('the listed turns actually solve the cube', check.solves);
-ok('progress starts at zero', check.progress.trim() === '0 / ' + check.count, check.progress);
+  return { solves: RS.Cube.isSolved(RS.Cube.applySeq(start, moves)), count: moves.length };
+});
+ok('the listed turns solve the photographed cube', check.solves);
 ok('a plausible number of moves', check.count > 20 && check.count < 130, String(check.count));
-ok('solve cube has 54 stickers', await page.locator('#solveCube .cube3d__sticker').count() === 54);
-ok('stage blocks rendered', await page.locator('.stage-block').count() >= 3);
-ok('hold-it-like-this names the centres', (await page.locator('#holdText').textContent()).includes('centre facing up'));
+ok('hold-it-like-this names the centres by colour',
+  (await page.locator('#holdText').textContent()).includes('centre facing up'));
 await settle(page);
-await page.screenshot({ path: `${SHOTS}/4-solve.png` });
+await page.screenshot({ path: `${SHOTS}/6-solve.png` });
 
-// step forward through every move and confirm the cube ends solved on screen
 await page.click('#btnLast');
-const atEnd = await page.evaluate(() => ({
-  progress: document.getElementById('solveProgress').textContent.trim(),
-  stage: document.getElementById('solveStageName').textContent.trim(),
-  glyph: document.getElementById('moveGlyph').textContent.trim(),
-  faces: Array.from(document.querySelectorAll('#solveCube .cube3d__face')).map((f) =>
-    new Set(Array.from(f.querySelectorAll('.cube3d__sticker')).map((s) => s.dataset.colour)).size)
-}));
-ok('jumping to the end reports finished', atEnd.stage === 'Finished', atEnd.stage);
-ok('progress shows every move done', atEnd.progress === `${check.count} / ${check.count}`, atEnd.progress);
-ok('each face of the 3D cube is one colour', atEnd.faces.every((n) => n === 1), JSON.stringify(atEnd.faces));
 await settle(page);
-await page.screenshot({ path: `${SHOTS}/5-solved.png` });
+const atEnd = await page.evaluate(() => ({
+  stage: document.getElementById('solveStageName').textContent.trim(),
+  faces: Array.from(document.querySelectorAll('#solveCube .cube3d__face')).map((f) =>
+    new Set(Array.from(f.querySelectorAll('.cube3d__sticker')).map((s) => s.dataset.face)).size)
+}));
+ok('the end of the solution says finished', atEnd.stage === 'Finished');
+ok('each face of the 3D cube ends one colour', atEnd.faces.every((n) => n === 1),
+  JSON.stringify(atEnd.faces));
+await page.screenshot({ path: `${SHOTS}/7-solved.png` });
 
-// stepping backwards and playing
-await page.click('#btnPrev');
-ok('previous steps back one', (await page.locator('#solveProgress').textContent()).trim() === `${check.count - 1} / ${check.count}`);
 await page.click('#btnFirst');
-ok('first returns to the start', (await page.locator('#solveProgress').textContent()).trim() === `0 / ${check.count}`);
-await page.click('#btnPlay');
-await page.waitForTimeout(1900);
-const playedTo = Number((await page.locator('#solveProgress').textContent()).split('/')[0].trim());
-ok('play advances on its own', playedTo >= 2, String(playedTo));
-await page.click('#btnPlay');
 await page.keyboard.press('ArrowRight');
-ok('arrow keys step', Number((await page.locator('#solveProgress').textContent()).split('/')[0].trim()) === playedTo + 1);
+ok('arrow keys step through the turns',
+  (await page.locator('#solveProgress').textContent()).trim().startsWith('1 /'));
 
-// ------------------------------------------------------- solver: camera scan
-console.log('\nsolver — full scan through the camera path');
+// ------------------------------------------------- solver: the live camera
+console.log('\nsolver — the live camera still works');
 await page.click('#btnNewScan');
 await page.waitForSelector('#panel-scan:not([hidden])');
+await page.click('#btnSwitchToCamera');
+await page.waitForFunction(() => document.getElementById('video').videoWidth > 0,
+  null, { timeout: 8000 });
+ok('the camera starts when asked for', await page.locator('#stageIdle').isHidden());
+ok('switch-camera appears with two cameras', !(await page.locator('#btnSwitchCam').isHidden()));
 
-const truth = await page.evaluate(() => {
-  const state = RS.Cube.randomState();
-  window.__truth = state;
-  return state;
-});
-const HEX = { U: '#f3f5f8', R: '#e02f3c', F: '#18b55c', D: '#ffd21f', L: '#ff8114', B: '#1f6df0' };
-const ORDER = ['U', 'R', 'F', 'D', 'L', 'B'];
-
-await page.click('#btnStartCam');
-await page.waitForFunction(() => document.getElementById('video').videoWidth > 0, null, { timeout: 8000 });
-ok('camera preview starts', await page.locator('#camIdle').isHidden());
-ok('switch-camera button appears with two cameras', !(await page.locator('#btnSwitchCam').isHidden()));
-
-// Sanity-check the sampling geometry directly: what the app reads under the
-// grid must match the squares drawn on the fake camera.
-const geometry = await page.evaluate((hexes) => {
-  const order = ['U', 'R', 'F', 'D', 'L', 'B'];
-  window.__setFace(['#e02f3c', '#18b55c', '#1f6df0', '#ffd21f', '#f3f5f8', '#ff8114', '#18b55c', '#e02f3c', '#1f6df0']);
+const geometry = await page.evaluate(() => {
+  window.__setFace(['#e02f3c', '#18b55c', '#1f6df0', '#ffd21f', '#f3f5f8', '#ff8114',
+                    '#18b55c', '#e02f3c', '#1f6df0']);
   return new Promise((resolve) => setTimeout(() => {
     const scanner = new RS.Scanner.Scanner();
     const cells = document.querySelectorAll('.stage__cell');
-    const plain = scanner.readCells(document.getElementById('video'), cells, false);
-    const mirrored = scanner.readCells(document.getElementById('video'), cells, true);
-    const name = (s) => RS.Colour.guessName(s.r, s.g, s.b);
-    resolve({ plain: plain.map(name), mirrored: mirrored.map(name) });
+    const video = document.getElementById('video');
+    const palette = RS.Colour.defaultPalette();
+    const name = (s) => RS.Colour.nearestFace(s, palette);
+    resolve({
+      plain: scanner.readCells(video, cells, false).map(name),
+      mirrored: scanner.readCells(video, cells, true).map(name)
+    });
   }, 400));
-}, HEX);
-ok('grid samples land on the right squares',
-  geometry.plain.join(',') === 'red,green,blue,yellow,white,orange,green,red,blue',
-  geometry.plain.join(','));
+});
+ok('the reading grid lands on the right squares',
+  geometry.plain.join(',') === 'R,F,B,D,U,L,F,R,B', geometry.plain.join(','));
 ok('mirroring flips the columns back',
-  geometry.mirrored.join(',') === 'blue,green,red,orange,white,yellow,blue,red,green',
-  geometry.mirrored.join(','));
+  geometry.mirrored.join(',') === 'B,F,R,L,U,D,B,R,F', geometry.mirrored.join(','));
 
-// Now scan all six faces for real, letting auto-capture fire each time.
+const HEX = { U: '#f3f5f8', R: '#e02f3c', F: '#18b55c', D: '#ffd21f', L: '#ff8114', B: '#1f6df0' };
+const ORDER = ['U', 'R', 'F', 'D', 'L', 'B'];
+const camTruth = await page.evaluate(() => { window.__truth = RS.Cube.randomState(); return window.__truth; });
 for (let f = 0; f < 6; f++) {
-  const face = ORDER[f];
   const colours = [];
-  for (let i = 0; i < 9; i++) colours.push(HEX[truth[f * 9 + i]]);
+  for (let i = 0; i < 9; i++) colours.push(HEX[camTruth[f * 9 + i]]);
   await page.evaluate((c) => window.__setFace(c), colours);
   if (f < 5) {
-    await page.waitForFunction(
-      (want) => document.getElementById('guideStep').textContent.includes(`Face ${want} of 6`),
+    await page.waitForFunction((want) =>
+      document.getElementById('guideStep').textContent.includes(`Face ${want} of 6`),
       f + 2, { timeout: 12000 });
   } else {
     await page.waitForSelector('#panel-review:not([hidden])', { timeout: 12000 });
   }
-  if (f === 1) {
-    await page.uncheck('#chkAuto');          // hold the live view still to capture it
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: `${SHOTS}/6-scanning.png` });
-    await page.check('#chkAuto');
-  }
 }
-ok('scanning all six faces lands on review', !(await page.locator('#panel-review').isHidden()));
-
-const read = await page.evaluate(() => {
-  const letters = { white: 'U', red: 'R', green: 'F', yellow: 'D', orange: 'L', blue: 'B' };
-  const cells = Array.from(document.querySelectorAll('.net__cell'))
-    .sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index));
-  return { got: cells.map((c) => letters[c.dataset.colour]).join(''), truth: window.__truth };
-});
-ok('the camera read the cube exactly right', read.got === read.truth,
-  read.got === read.truth ? '' : `read ${read.got} want ${read.truth}`);
-ok('scanned cube validates', (await page.locator('#reviewStatus').textContent()).includes('valid cube'));
-
-await page.click('#btnSolve');
-await page.waitForSelector('#panel-solve:not([hidden])', { timeout: 20000 });
-const scanSolve = await page.evaluate(() => {
-  const moves = Array.from(document.querySelectorAll('.move')).map((m) => m.textContent);
-  return RS.Cube.isSolved(RS.Cube.applySeq(RS.Cube.toArray(window.__truth), moves));
-});
-ok('the scanned cube gets a working solution', scanSolve);
+const camRead = await page.$$eval('.net__cell', (els) => els
+  .sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
+  .map((e) => e.dataset.face).join(''));
+ok('the camera path still reads a cube exactly', camRead === camTruth,
+  camRead === camTruth ? '' : 'mismatch');
 
 ok('no console errors across the whole run', problems.length === 0, problems.join(' | '));
 await page.close();

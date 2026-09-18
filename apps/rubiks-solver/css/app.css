@@ -1,24 +1,29 @@
 /* app.css — Rubik's Solver. Builds on ../../assets/css/base.css. */
 
-/* Sticker colours, shared by the camera overlay, the net and the 3D cube. */
+/*
+ * Sticker colours come from the cube's own palette, which the user can edit.
+ * app.js writes --face-U … --face-B on the root, and everything that draws a
+ * sticker reads them, so changing a colour recolours the net, the 3D cube, the
+ * face slots and the paint swatches at once with no repainting code.
+ */
 :root {
-  --c-white: #f3f5f8;
-  --c-yellow: #ffd21f;
-  --c-red: #e02f3c;
-  --c-orange: #ff8114;
-  --c-green: #18b55c;
-  --c-blue: #1f6df0;
-  --c-blank: #232833;
+  --face-U: #f3f5f8;
+  --face-R: #e02f3c;
+  --face-F: #18b55c;
+  --face-D: #ffd21f;
+  --face-L: #ff8114;
+  --face-B: #1f6df0;
+  --face-blank: #232833;
   --sticker-radius: 18%;
 }
 
-[data-colour="white"]  { --sticker: var(--c-white); }
-[data-colour="yellow"] { --sticker: var(--c-yellow); }
-[data-colour="red"]    { --sticker: var(--c-red); }
-[data-colour="orange"] { --sticker: var(--c-orange); }
-[data-colour="green"]  { --sticker: var(--c-green); }
-[data-colour="blue"]   { --sticker: var(--c-blue); }
-[data-colour="blank"]  { --sticker: var(--c-blank); }
+[data-face="U"] { --sticker: var(--face-U); }
+[data-face="R"] { --sticker: var(--face-R); }
+[data-face="F"] { --sticker: var(--face-F); }
+[data-face="D"] { --sticker: var(--face-D); }
+[data-face="L"] { --sticker: var(--face-L); }
+[data-face="B"] { --sticker: var(--face-B); }
+[data-face=""]  { --sticker: var(--face-blank); }
 
 .topbar__sub { font-size: 0.78rem; margin-top: 1px; }
 .tiny { font-size: 0.75rem; }
@@ -143,9 +148,9 @@
   transition: opacity 0.2s var(--ease), background 0.2s var(--ease);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
 }
-.stage__cell[data-colour]:not([data-colour="blank"])::after { opacity: 1; }
-.stage__cell[data-colour]:not([data-colour="blank"]) { border-color: rgba(255, 255, 255, 0.95); }
-.stage__cell[data-colour="blank"] { border-color: rgba(255, 255, 255, 0.45); border-style: dashed; }
+.stage__cell[data-face]:not([data-face=""])::after { opacity: 1; }
+.stage__cell[data-face]:not([data-face=""]) { border-color: rgba(255, 255, 255, 0.95); }
+.stage__cell[data-face=""] { border-color: rgba(255, 255, 255, 0.45); border-style: dashed; }
 
 .stage__idle {
   position: absolute;
@@ -255,7 +260,7 @@
 .face-chip__mini i {
   aspect-ratio: 1;
   border-radius: 2px;
-  background: var(--sticker, var(--c-blank));
+  background: var(--sticker, var(--face-blank));
 }
 .face-chip__name { font-size: 0.66rem; font-weight: 640; letter-spacing: 0.03em; text-transform: uppercase; }
 .face-chip.is-current { border-color: var(--accent-line); background: var(--accent-soft); color: #cdc4ff; }
@@ -302,14 +307,13 @@
   border: 0;
   padding: 0;
   border-radius: var(--sticker-radius);
-  background: var(--sticker, var(--c-blank));
+  background: var(--sticker, var(--face-blank));
   cursor: pointer;
   position: relative;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.22);
   transition: transform 0.12s var(--ease), box-shadow 0.16s var(--ease);
 }
 .net__cell:hover { transform: scale(1.07); z-index: 2; }
-.net__cell.is-centre { cursor: default; }
 .net__cell.is-centre::after {
   content: "";
   position: absolute;
@@ -317,7 +321,6 @@
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.3);
 }
-.net__cell.is-centre:hover { transform: none; }
 .net__cell.is-suspect { box-shadow: inset 0 0 0 2px #fff, 0 0 0 2px var(--amber); }
 
 .net-legend { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -395,7 +398,7 @@
 }
 .cube3d__sticker {
   border-radius: var(--sticker-radius);
-  background: var(--sticker, var(--c-blank));
+  background: var(--sticker, var(--face-blank));
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
   transition: background 0.2s var(--ease), transform 0.2s var(--ease);
 }
@@ -526,4 +529,245 @@
 @media (max-width: 345px) {
   .steps__label { display: none; }
   .steps__item { padding: 0; }
+}
+
+/* ===================================================== photo alignment ==== */
+
+.shot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  z-index: 2;
+}
+.shot[hidden] { display: none; }
+
+/*
+ * The frame is sized in pixels to the scaled photo, so it is exactly the
+ * visible image and nothing else. That means the overlay can be positioned in
+ * plain percentages of the photo, with no crop arithmetic anywhere.
+ *
+ * Sized from JS rather than `aspect-ratio`, because a box that must fit inside
+ * a container on both axes *and* hold its ratio cannot be expressed with
+ * max-width and max-height — whichever axis clamps, the other keeps its old
+ * value and the ratio breaks.
+ */
+.shot__frame {
+  position: relative;
+  touch-action: none;
+}
+
+.shot__image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: fill;
+  border-radius: 10px;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.shot__lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.shot__lines .quad {
+  fill: rgba(10, 12, 17, 0.12);
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+}
+.shot__lines .inner {
+  stroke: rgba(255, 255, 255, 0.7);
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.shot__reads { position: absolute; inset: 0; pointer-events: none; }
+.shot__read {
+  position: absolute;
+  width: 12%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 24%;
+  background: var(--sticker, var(--face-blank));
+  box-shadow: 0 0 0 2px rgba(10, 12, 17, 0.55), 0 2px 8px rgba(0, 0, 0, 0.45);
+  transition: background 0.12s var(--ease);
+}
+
+.handle {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2.5px solid #fff;
+  background: rgba(111, 92, 246, 0.55);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+  touch-action: none;
+  transition: transform 0.12s var(--ease), background 0.12s var(--ease);
+}
+.handle::after {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  background: #fff;
+}
+.handle:hover, .handle:focus-visible { transform: scale(1.12); background: var(--accent); }
+.handle.is-dragging { transform: scale(1.2); background: var(--accent); cursor: grabbing; }
+
+.stage__idle-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+/* face slots gain a tick once they hold a photo */
+.face-chip { position: relative; }
+.face-chip__tick {
+  position: absolute;
+  top: 3px; right: 4px;
+  font-size: 0.62rem;
+  color: var(--mint);
+}
+
+/* ======================================================== review views ==== */
+
+.net-card__head { display: flex; gap: 12px; justify-content: space-between; align-items: start; }
+
+.viewswitch {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  flex: none;
+}
+.viewswitch__btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 5px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.16s var(--ease), color 0.16s var(--ease);
+}
+.viewswitch__btn.is-on { background: var(--accent); color: #fff; }
+
+.review-view[hidden] { display: none; }
+.cube-holder--edit { min-height: 260px; }
+.cube3d--edit .cube3d__sticker { cursor: pointer; }
+.cube3d__sticker.is-suspect {
+  box-shadow: inset 0 0 0 2px #fff, 0 0 0 2px var(--amber);
+}
+
+.spinner-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+/* ========================================================= colour sheet === */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(5, 7, 11, 0.7);
+}
+.sheet[hidden] { display: none; }
+
+.sheet__box {
+  width: min(460px, 100%);
+  max-height: min(88vh, 720px);
+  overflow-y: auto;
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+  background: var(--surface);
+}
+.sheet__head { display: flex; gap: 12px; align-items: start; justify-content: space-between; }
+.sheet__head h2 { font-size: 1.1rem; }
+.sheet__head p { margin-top: 3px; max-width: 42ch; }
+.sheet__foot { display: flex; gap: 8px; align-items: center; }
+
+.presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.preset {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.preset:hover { background: var(--raised-hover); color: var(--text); }
+.preset.is-on { border-color: var(--accent-line); background: var(--accent-soft); color: #cdc4ff; }
+.preset__dots { display: flex; gap: 2px; }
+.preset__dots i { width: 8px; height: 8px; border-radius: 2px; }
+
+.palette-rows { display: grid; gap: 7px; }
+.prow {
+  display: grid;
+  grid-template-columns: 62px 42px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+}
+.prow__name { font-size: 0.85rem; font-weight: 560; color: var(--text-dim); }
+.prow__swatch {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 42px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: transparent;
+  cursor: pointer;
+}
+.prow__swatch::-webkit-color-swatch-wrapper { padding: 2px; }
+.prow__swatch::-webkit-color-swatch { border: 0; border-radius: 5px; }
+.prow__swatch::-moz-color-swatch { border: 0; border-radius: 5px; }
+.prow__hex {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  outline: none;
+}
+.prow__hex:focus { border-color: var(--accent-line); }
+.prow__hex.is-bad { border-color: var(--rose); }
+
+/* ============================================================== mobile ==== */
+
+@media (max-width: 899px) {
+  .topbar__apps { display: none; }
+  .net-card__head { flex-direction: column; gap: 8px; }
+  .viewswitch { align-self: start; }
 }

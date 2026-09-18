@@ -3,12 +3,13 @@
   "private": true,
   "description": "A collection of self-contained web apps. Node is only used for the tests \u2014 the apps themselves have no build step.",
   "scripts": {
-    "test": "node tests/site.test.cjs && node tests/solver.test.cjs && node tests/browser.test.mjs",
+    "test": "node tests/site.test.cjs && node tests/recognise.test.cjs && node tests/solver.test.cjs && node tests/browser.test.mjs",
     "test:site": "node tests/site.test.cjs",
     "test:solver": "node tests/solver.test.cjs",
     "test:solver:long": "node tests/solver.test.cjs 25000",
     "test:browser": "node tests/browser.test.mjs",
-    "serve": "python3 -m http.server 8000"
+    "serve": "python3 -m http.server 8000",
+    "test:recognise": "node tests/recognise.test.cjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0"

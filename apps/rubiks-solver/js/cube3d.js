@@ -88,25 +88,47 @@
       var t = event.touches ? event.touches[0] : event;
       return { x: t.clientX, y: t.clientY };
     }
+
+    // Spinning and tapping share the same surface, so a press only counts as
+    // a tap if the pointer barely moved.
+    var pressAt = null, moved = 0;
+    var TAP_SLOP = 6;
+
     function onDown(event) {
       dragging = true;
       spinning = false;
       lastPoint = pointOf(event);
+      pressAt = lastPoint;
+      moved = 0;
       container.classList.add('is-dragging');
     }
     function onMove(event) {
       if (!dragging) return;
       var p = pointOf(event);
+      moved += Math.abs(p.x - lastPoint.x) + Math.abs(p.y - lastPoint.y);
       view.y += (p.x - lastPoint.x) * 0.55;
       view.x = Math.max(-88, Math.min(88, view.x - (p.y - lastPoint.y) * 0.55));
       lastPoint = p;
       paint();
       if (event.cancelable) event.preventDefault();
     }
-    function onUp() {
+
+    function onUp(event) {
+      var wasTap = dragging && moved < TAP_SLOP;
       dragging = false;
       lastPoint = null;
       container.classList.remove('is-dragging');
+      if (!wasTap || !options.onPick) return;
+
+      var target = (event && event.target) ||
+        (pressAt && document.elementFromPoint(pressAt.x, pressAt.y));
+      var cell = target && target.closest ? target.closest('.cube3d__sticker') : null;
+      if (!cell) return;
+      var plane = cell.parentElement;
+      var index = Array.prototype.indexOf.call(plane.children, cell);
+      var faceIndex = FACES.indexOf(plane.dataset.face);
+      if (faceIndex < 0 || index < 0) return;
+      options.onPick(faceIndex * 9 + index, plane.dataset.face, index);
     }
 
     container.addEventListener('mousedown', onDown);
@@ -121,30 +143,19 @@
     return {
       element: container,
 
-      /** state: 54 face letters. names: face letter -> palette colour name. */
-      setState: function (state, names) {
+      /**
+       * state: 54 face letters, or '' for a sticker not known yet.
+       *
+       * The letter goes on the element and the colour comes from a CSS
+       * variable for that face, so editing the cube's palette recolours the
+       * whole cube without touching this code.
+       */
+      setState: function (state) {
         current = state;
         FACES.forEach(function (face, fi) {
           for (var i = 0; i < 9; i++) {
-            var letter = state[fi * 9 + i];
-            var name = names ? names[letter] : null;
-            var cell = stickers[face][i];
-            cell.dataset.colour = name || 'blank';
-            cell.dataset.letter = letter || '';
-          }
-        });
-      },
-
-      /**
-       * Paint from 54 palette colour names directly, for cases where there is
-       * no cube state yet — such as the scan guide, which shows the faces
-       * read so far and leaves the rest blank.
-       */
-      setColours: function (names) {
-        FACES.forEach(function (face, fi) {
-          for (var i = 0; i < 9; i++) {
-            stickers[face][i].dataset.colour = names[fi * 9 + i] || 'blank';
-            stickers[face][i].dataset.letter = '';
+            var letter = state[fi * 9 + i] || '';
+            stickers[face][i].dataset.face = letter;
           }
         });
       },
@@ -178,6 +189,24 @@
       },
 
       setSpin: function (on) { spinning = on; },
+
+      /** Ring the stickers the reader was unsure about. */
+      setSuspect: function (flags) {
+        FACES.forEach(function (face, fi) {
+          for (var i = 0; i < 9; i++) {
+            stickers[face][i].classList.toggle('is-suspect', !!(flags && flags[fi * 9 + i]));
+          }
+        });
+      },
+
+      /** Turn a quarter of the way round, for reaching the hidden faces. */
+      nudge: function (dx, dy) {
+        spinning = false;
+        view.y += dx;
+        view.x = Math.max(-88, Math.min(88, view.x + (dy || 0)));
+        paint();
+      },
+
 
       destroy: function () {
         if (rafId) cancelAnimationFrame(rafId);

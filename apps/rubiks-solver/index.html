@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Rubik's Solver</title>
-<meta name="description" content="Scan a Rubik's cube with your camera and get the turns that solve it, one step at a time.">
+<meta name="description" content="Photograph each face of a Rubik's cube and get the turns that solve it. Works with any colour scheme.">
 <meta name="theme-color" content="#0a0c11">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141c'/%3E%3Crect x='6' y='6' width='8' height='8' rx='2' fill='%23fb5c6c'/%3E%3Crect x='18' y='6' width='8' height='8' rx='2' fill='%23ffbf3c'/%3E%3Crect x='6' y='18' width='8' height='8' rx='2' fill='%2324d3a5'/%3E%3Crect x='18' y='18' width='8' height='8' rx='2' fill='%236f5cf6'/%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
@@ -19,18 +19,19 @@
     <a class="brandmark" href="../../index.html" aria-label="All apps">◩</a>
     <div>
       <h1 class="topbar__title">Rubik&rsquo;s Solver</h1>
-      <p class="faint topbar__sub">Show it each face, follow the turns</p>
+      <p class="faint topbar__sub">Photograph each face, follow the turns</p>
     </div>
     <div class="topbar__spacer"></div>
-    <a class="btn btn--quiet" href="../../index.html">All apps</a>
+    <button class="btn btn--quiet" id="btnColours" type="button">Cube colours</button>
+    <a class="btn btn--quiet topbar__apps" href="../../index.html">All apps</a>
   </header>
 
   <nav class="steps" aria-label="Progress">
     <button class="steps__item is-current" data-goto="scan" type="button">
-      <span class="steps__num">1</span><span class="steps__label">Scan</span>
+      <span class="steps__num">1</span><span class="steps__label">Photos</span>
     </button>
     <button class="steps__item" data-goto="review" type="button" disabled>
-      <span class="steps__num">2</span><span class="steps__label">Review</span>
+      <span class="steps__num">2</span><span class="steps__label">Check</span>
     </button>
     <button class="steps__item" data-goto="solve" type="button" disabled>
       <span class="steps__num">3</span><span class="steps__label">Solve</span>
@@ -40,26 +41,48 @@
   <!-- ------------------------------------------------------------- scan -->
   <section class="panel panel--scan" id="panel-scan">
     <div class="stage card" id="stage">
-      <video class="stage__video" id="video" playsinline muted autoplay></video>
-      <div class="stage__frame" id="grid" aria-hidden="true"></div>
 
-      <div class="stage__idle" id="camIdle">
-        <div class="stage__idle-inner">
-          <div class="stage__idle-icon">◫</div>
-          <h2>Point your camera at the cube</h2>
-          <p class="muted" id="camIdleText">
-            The nine squares read one face at a time. Nothing leaves your device.
-          </p>
-          <button class="btn btn--primary btn--lg" id="btnStartCam" type="button">Start camera</button>
+      <!-- a still photo with a grid you drag onto the face -->
+      <div class="shot" id="shot" hidden>
+        <div class="shot__frame" id="shotFrame">
+          <img class="shot__image" id="shotImage" alt="The face you photographed">
+          <svg class="shot__lines" id="shotLines" viewBox="0 0 100 100"
+               preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="shot__reads" id="shotReads" aria-hidden="true"></div>
+          <button class="handle" type="button" data-corner="0" aria-label="Top left corner"></button>
+          <button class="handle" type="button" data-corner="1" aria-label="Top right corner"></button>
+          <button class="handle" type="button" data-corner="2" aria-label="Bottom right corner"></button>
+          <button class="handle" type="button" data-corner="3" aria-label="Bottom left corner"></button>
         </div>
       </div>
 
+      <!-- the live camera, for anyone who prefers it -->
+      <video class="stage__video" id="video" playsinline muted autoplay hidden></video>
+      <div class="stage__frame" id="grid" aria-hidden="true" hidden></div>
       <div class="stage__steady" id="steady" hidden>
         <div class="stage__steady-bar" id="steadyBar"></div>
         <span class="stage__steady-text">Hold steady&hellip;</span>
       </div>
-
       <div class="stage__flash" id="flash" aria-hidden="true"></div>
+
+      <!-- nothing loaded yet -->
+      <div class="stage__idle" id="stageIdle">
+        <div class="stage__idle-inner">
+          <div class="stage__idle-icon">▣</div>
+          <h2 id="idleTitle">Photograph the six faces</h2>
+          <p class="muted" id="idleText">
+            One photo per face, straight on and evenly lit. Then drag the corners
+            onto the face. Nothing leaves your device.
+          </p>
+          <div class="stage__idle-actions">
+            <label class="btn btn--primary btn--lg">
+              Choose photos
+              <input type="file" id="filePick" accept="image/*" multiple class="sr-only">
+            </label>
+            <button class="btn" id="btnUseCamera" type="button">Use the camera</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <aside class="scan-side">
@@ -72,14 +95,26 @@
         </div>
       </div>
 
-      <div class="faces" id="faceChips"></div>
+      <div class="faces" id="faceSlots"></div>
 
       <div id="scanNotice" class="scan-notice"></div>
 
-      <div class="scan-controls">
-        <button class="btn btn--primary btn--lg" id="btnCapture" type="button" disabled>
-          Capture face
-        </button>
+      <div class="scan-controls" id="photoControls">
+        <label class="btn btn--primary btn--lg">
+          <span id="pickLabel">Add photos</span>
+          <input type="file" id="filePickMore" accept="image/*" multiple class="sr-only">
+        </label>
+        <button class="btn btn--lg" id="btnRead" type="button" disabled>Read the cube</button>
+        <div class="scan-controls__row scan-controls__row--split">
+          <button class="btn btn--quiet" id="btnClearFace" type="button" disabled>Clear face</button>
+          <button class="btn btn--quiet" id="btnResetGrid" type="button" disabled>Reset grid</button>
+          <button class="btn btn--quiet" id="btnDemo" type="button">Demo cube</button>
+        </div>
+        <button class="btn btn--quiet" id="btnSwitchToCamera" type="button">Use the live camera instead</button>
+      </div>
+
+      <div class="scan-controls" id="cameraControls" hidden>
+        <button class="btn btn--primary btn--lg" id="btnCapture" type="button" disabled>Capture face</button>
         <div class="scan-controls__row">
           <label class="toggle">
             <input type="checkbox" id="chkAuto" checked>
@@ -88,14 +123,7 @@
           <button class="btn btn--icon" id="btnMirror" type="button" title="Mirror the preview" aria-label="Mirror the preview">⇋</button>
           <button class="btn btn--icon" id="btnSwitchCam" type="button" title="Switch camera" aria-label="Switch camera" hidden>⟲</button>
         </div>
-        <div class="scan-controls__row scan-controls__row--split">
-          <button class="btn btn--quiet" id="btnRedoFace" type="button" disabled
-                  title="Scan the last face again">Redo last</button>
-          <button class="btn btn--quiet" id="btnManual" type="button"
-                  title="Skip the camera and set the colours yourself">By hand</button>
-          <button class="btn btn--quiet" id="btnDemo" type="button"
-                  title="Load a scrambled cube to try the solver">Demo cube</button>
-        </div>
+        <button class="btn btn--quiet" id="btnSwitchToPhotos" type="button">Back to photos</button>
       </div>
     </aside>
   </section>
@@ -104,10 +132,29 @@
   <section class="panel panel--review" id="panel-review" hidden>
     <div class="card net-card">
       <div class="net-card__head">
-        <h2>Your cube, flattened</h2>
-        <p class="muted">Tap any sticker to correct it. Centres are fixed.</p>
+        <div>
+          <h2>Check the colours</h2>
+          <p class="muted">Tap any sticker to correct it, in either view.</p>
+        </div>
+        <div class="viewswitch" role="group" aria-label="How to show the cube">
+          <button class="viewswitch__btn is-on" id="btnView3d" type="button">3D</button>
+          <button class="viewswitch__btn" id="btnViewFlat" type="button">Flat</button>
+        </div>
       </div>
-      <div class="net" id="net"></div>
+
+      <div class="review-view" id="view3d">
+        <div class="cube-holder cube-holder--edit" id="reviewCube"></div>
+        <div class="spinner-controls">
+          <button class="btn btn--icon" id="btnSpinLeft" type="button" aria-label="Turn left">◀</button>
+          <span class="faint tiny">drag to spin, tap a sticker to paint</span>
+          <button class="btn btn--icon" id="btnSpinRight" type="button" aria-label="Turn right">▶</button>
+        </div>
+      </div>
+
+      <div class="review-view" id="viewFlat" hidden>
+        <div class="net" id="net"></div>
+      </div>
+
       <div class="net-legend">
         <span class="chip" id="netLegend" hidden><i class="dot dot--suspect"></i> ringed = worth a second look</span>
         <span class="chip" id="netCount"></span>
@@ -116,7 +163,10 @@
 
     <aside class="review-side">
       <div class="card pad">
-        <h3 class="side-title">Colour to paint with</h3>
+        <div class="side-head">
+          <h3 class="side-title">Paint with</h3>
+          <button class="btn btn--quiet btn--tiny" id="btnEditColours" type="button">Edit colours</button>
+        </div>
         <div class="palette" id="palette"></div>
       </div>
 
@@ -124,13 +174,7 @@
 
       <div class="review-actions">
         <button class="btn btn--primary btn--lg" id="btnSolve" type="button">Solve it</button>
-        <button class="btn" id="btnRescan" type="button">Scan again</button>
-      </div>
-
-      <div class="card pad cube-card">
-        <h3 class="side-title">In 3D</h3>
-        <div class="cube-holder" id="reviewCube"></div>
-        <p class="faint tiny">Drag to spin</p>
+        <button class="btn" id="btnRescan" type="button">Back to photos</button>
       </div>
     </aside>
   </section>
@@ -185,7 +229,7 @@
 
       <div class="solve-actions">
         <button class="btn" id="btnBackReview" type="button">Back to colours</button>
-        <button class="btn btn--quiet" id="btnNewScan" type="button">Scan a new cube</button>
+        <button class="btn btn--quiet" id="btnNewScan" type="button">Start over</button>
       </div>
     </aside>
   </section>
@@ -193,6 +237,34 @@
   <footer class="footer faint tiny">
     <span id="tableNote"></span>
   </footer>
+</div>
+
+<!-- --------------------------------------------------------- colour sheet -->
+<div class="sheet" id="paletteSheet" hidden>
+  <div class="sheet__box card" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <header class="sheet__head">
+      <div>
+        <h2 id="sheetTitle">Your cube&rsquo;s colours</h2>
+        <p class="muted tiny">
+          Not every cube uses the usual six. Set what yours actually looks like &mdash;
+          it is used both to draw the cube and to read your photos.
+        </p>
+      </div>
+      <button class="btn btn--icon" id="btnSheetClose" type="button" aria-label="Close">✕</button>
+    </header>
+
+    <div class="presets" id="presets"></div>
+    <div class="palette-rows" id="paletteRows"></div>
+    <div id="paletteStatus"></div>
+
+    <footer class="sheet__foot">
+      <button class="btn btn--quiet" id="btnPaletteFromPhotos" type="button" disabled>
+        Read from my photos
+      </button>
+      <div class="topbar__spacer"></div>
+      <button class="btn btn--primary" id="btnSheetDone" type="button">Done</button>
+    </footer>
+  </div>
 </div>
 
 <div class="busy" id="busy" hidden>
@@ -205,6 +277,8 @@
 <script src="js/cube.js"></script>
 <script src="js/solver.js"></script>
 <script src="js/colour.js"></script>
+<script src="js/recognise.js"></script>
+<script src="js/photo.js"></script>
 <script src="js/cube3d.js"></script>
 <script src="js/scanner.js"></script>
 <script src="js/app.js"></script>

@@ -23,11 +23,11 @@ window.APPS = [
   {
     id: 'rubiks-solver',
     name: "Rubik's Solver",
-    tagline: 'Show each face to the camera and follow the turns that solve it.',
+    tagline: 'Photograph each face and follow the turns that solve it. Any colour scheme.',
     icon: '◩',
     swatches: ['white', 'red', 'white', 'green', 'yellow', 'blue', 'orange', 'white', 'green'],
     accent: '#6f5cf6',
-    tags: ['camera', 'puzzle', 'solver', 'offline', '3d'],
+    tags: ['photos', 'camera', 'puzzle', 'solver', 'offline', '3d'],
     status: 'ready',
     added: '2026-09-17'
   }

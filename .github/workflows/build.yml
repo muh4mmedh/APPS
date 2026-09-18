@@ -31,6 +31,9 @@ jobs:
       - name: Site checks
         run: node tests/site.test.cjs
 
+      - name: Colour reading tests
+        run: node tests/recognise.test.cjs 400
+
       - name: Engine tests
         run: node tests/solver.test.cjs 5000
 

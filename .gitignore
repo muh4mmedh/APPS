@@ -11,3 +11,5 @@ android/.kotlin/
 
 # release artifacts are built, not committed
 release/dist/
+
+tests/photos/

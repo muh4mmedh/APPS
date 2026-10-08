@@ -424,7 +424,17 @@
     m.hidden = false;
   }
 
+  // Inside the Android app a download link does nothing, so the app asks
+  // where to save and calls back with how it went.
+  window.gymSaved = function (ok) {
+    message(ok ? 'Backup saved.' : 'The backup could not be saved.', ok ? 'good' : 'bad');
+  };
+
   $('exportBtn').addEventListener('click', function () {
+    if (window.GymAndroid) {
+      window.GymAndroid.saveFile('gym-log-' + today() + '.json', S.exportText(data));
+      return;
+    }
     var blob = new Blob([S.exportText(data)], { type: 'application/json' });
     var a = el('a', { href: URL.createObjectURL(blob), download: 'gym-log-' + today() + '.json' });
     document.body.appendChild(a);

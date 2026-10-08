@@ -142,6 +142,38 @@ try {
 
   ok('no script errors', errors.length === 0, errors.join(' | '));
   await context.close();
+
+  // How the Android app runs it: straight off file://, with the native
+  // bridge standing in for downloads. Uses the files exactly as packed into
+  // the APK when a build exists, else the source folder.
+  console.log('\nas the Android app (file://)');
+  const { existsSync } = await import('node:fs');
+  const staged = join(APP, 'android', 'build', 'assets', 'www', 'index.html');
+  const fileUrl = 'file://' + (existsSync(staged) ? staged : join(APP, 'index.html'));
+  const shell = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const app = await shell.newPage();
+  const appErrors = [];
+  app.on('pageerror', (e) => appErrors.push(e.message));
+  await app.addInitScript(() => {
+    window.__saved = [];
+    window.GymAndroid = { saveFile: (name, text) => { window.__saved.push({ name, text }); setTimeout(() => window.gymSaved(true), 0); } };
+  });
+  await app.goto(fileUrl);
+  ok('loads from file://' + (existsSync(staged) ? ' (APK build)' : ''), (await app.locator('#list .ex').count()) > 0);
+  const firstEx = app.locator('#list .ex').first();
+  await firstEx.locator('.set').first().click();
+  if (await app.locator('#sheet[open]').count()) { await app.fill('#inW', '20'); await app.click('#sheetSave'); }
+  await app.reload();
+  ok('keeps logged sets across restarts', (await firstEx.locator('.set').first().getAttribute('aria-pressed')) === 'true');
+  await app.goto(fileUrl + '#history');
+  await app.click('#exportBtn');
+  await app.locator('#dataMsg').waitFor();
+  const saved = await app.evaluate(() => window.__saved);
+  ok('export goes through the Android bridge', saved.length === 1 && /^gym-log-.*\.json$/.test(saved[0].name));
+  ok('and hands it a valid backup', JSON.parse(saved[0].text).sessions.length === 1);
+  ok('then says it saved', (await app.textContent('#dataMsg')).includes('saved'));
+  ok('no script errors in the app', appErrors.length === 0, appErrors.join(' | '));
+  await shell.close();
 } finally {
   await browser.close();
   server.close();

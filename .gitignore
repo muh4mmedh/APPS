@@ -14,3 +14,4 @@ release/dist/
 
 tests/photos/
 gym/tests/screenshots/
+gym/android/build/

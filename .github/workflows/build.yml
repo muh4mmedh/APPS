@@ -119,6 +119,27 @@ jobs:
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
+  gym-apk:
+    name: gym apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Debian's packaging of the Android build tools: no SDK download needed.
+      - name: Install Android build tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q aapt dalvik-exchange zipalign apksigner android-sdk-platform-23
+
+      - name: Build the Gym APK
+        run: gym/android/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gym-apk
+          path: gym/android/build/*.apk
+          if-no-files-found: error
+
   release:
     name: publish release
     needs: [test, android]

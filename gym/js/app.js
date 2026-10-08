@@ -11,14 +11,53 @@
   var Fig = window.GymFigures;
   var S = window.GymStore;
 
-  var data = S.load(window.localStorage);
+  /*
+   * Where the log lives. In the Android app: SQLite, through the GymAndroid
+   * bridge (see android/src/.../GymDatabase.java). In a browser: localStorage.
+   */
+  var bridge = window.GymAndroid && typeof window.GymAndroid.dbLoad === 'function' ? window.GymAndroid : null;
+  var dbProblem = null;
+
+  function loadData() {
+    if (!bridge) return S.load(window.localStorage);
+    var fromDb;
+    try {
+      fromDb = S.parse(bridge.dbLoad());
+    } catch (e) {
+      // Never overwrite a database we could not read; keep working from
+      // localStorage and say so.
+      dbProblem = 'The workout database could not be read, so changes are being kept in temporary storage. Export a backup from History.';
+      bridge = null;
+      return S.load(window.localStorage);
+    }
+    // Version 1.0.0 of the app kept the log in localStorage. Move it into
+    // the database once, the first time this version opens.
+    var hadOld = false;
+    try { hadOld = window.localStorage.getItem(S.KEY) != null; } catch (e) { /* storage blocked */ }
+    if (hadOld && !fromDb.sessions.length) {
+      var old = S.load(window.localStorage);
+      if (bridge.dbSave(S.exportText(old))) {
+        try { window.localStorage.removeItem(S.KEY); } catch (e) { /* harmless */ }
+      }
+      return old;
+    }
+    return fromDb;
+  }
+
+  var data = loadData();
   var now = new Date();
   var view = { day: S.openDay(data, DAYS, now) };
   var open = {};   // which "How to do it" panels are open, kept across redraws
 
   function today() { return S.dateKey(new Date()); }
   function week() { return S.weekKey(new Date()); }
-  function persist() { S.save(window.localStorage, data); }
+  function persist() {
+    if (bridge) {
+      if (bridge.dbSave(JSON.stringify(data))) return;
+      dbProblem = 'Your last change could not be saved to the workout database. It is kept in temporary storage for now; export a backup from History.';
+    }
+    S.save(window.localStorage, data);
+  }
   function $(id) { return document.getElementById(id); }
 
   function el(tag, attrs, text) {
@@ -311,6 +350,8 @@
     var sw = $('viewSwitch');
     sw.textContent = v === 'history' ? 'Back to training' : 'History';
     sw.setAttribute('href', v === 'history' ? '#' : '#history');
+    $('dbAlert').hidden = !dbProblem;
+    $('dbAlert').textContent = dbProblem || '';
     if (v === 'history') renderHistory();
     else { renderKneeAlert(); renderTabs(); renderProgress(); renderList(); renderFinish(); }
     if (keepScroll) window.scrollTo(0, y);

@@ -37,7 +37,7 @@ it can move to its own repository as-is.
 - **Offline:** the service worker precaches every file. After one visit, the
   app works with no signal and can be installed with *Add to Home Screen*.
 - **Android app:** `android/build.sh` packs the same files into an APK that
-  installs on its own. See [`android/README.md`](android/README.md).
+  installs on its own. There the log lives in SQLite and survives updates. See [`android/README.md`](android/README.md).
 
 Ticks start fresh each Monday. That's only because a tick means "logged in
 this week's session", so nothing you've logged is ever thrown away.

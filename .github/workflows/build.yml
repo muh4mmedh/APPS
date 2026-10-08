@@ -131,6 +131,9 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y -q aapt dalvik-exchange zipalign apksigner android-sdk-platform-23
 
+      - name: Database tests (real SQLite on the JVM)
+        run: gym/android/test/run.sh
+
       - name: Build the Gym APK
         run: gym/android/build.sh
 

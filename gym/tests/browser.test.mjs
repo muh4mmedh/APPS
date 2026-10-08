@@ -154,11 +154,27 @@ try {
   const app = await shell.newPage();
   const appErrors = [];
   app.on('pageerror', (e) => appErrors.push(e.message));
+  // A stand-in for the SQLite bridge: holds the saved JSON under its own key
+  // so it survives reloads the way gym.db survives restarts.
   await app.addInitScript(() => {
     window.__saved = [];
-    window.GymAndroid = { saveFile: (name, text) => { window.__saved.push({ name, text }); setTimeout(() => window.gymSaved(true), 0); } };
+    window.GymAndroid = {
+      dbLoad: () => localStorage.getItem('__fake_sqlite') || '{"v":1,"unit":"kg","sessions":[]}',
+      dbSave: (json) => { localStorage.setItem('__fake_sqlite', json); return true; },
+      saveFile: (name, text) => { window.__saved.push({ name, text }); setTimeout(() => window.gymSaved(true), 0); }
+    };
   });
+  // Pretend version 1.0.0 was installed and had logged one session.
   await app.goto(fileUrl);
+  await app.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem('gym-log-v1', JSON.stringify({ v: 1, unit: 'kg', sessions: [
+      { week: '2026-09-28', dayId: 'd2', date: '2026-09-29', sets: { curl: [{ w: 10, r: 12 }] }, knee: 'fine', bw: 79 }] }));
+  });
+  await app.reload();
+  const moved = await app.evaluate(() => ({ db: localStorage.getItem('__fake_sqlite'), old: localStorage.getItem('gym-log-v1') }));
+  ok('1.0.0 data moves into the database on first open', !!moved.db && JSON.parse(moved.db).sessions.length === 1);
+  ok('and the old copy is removed', moved.old === null);
   ok('loads from file://' + (existsSync(staged) ? ' (APK build)' : ''), (await app.locator('#list .ex').count()) > 0);
   const firstEx = app.locator('#list .ex').first();
   await firstEx.locator('.set').first().click();
@@ -169,9 +185,17 @@ try {
   await app.click('#exportBtn');
   await app.locator('#dataMsg').waitFor();
   const saved = await app.evaluate(() => window.__saved);
-  ok('export goes through the Android bridge', saved.length === 1 && /^gym-log-.*\.json$/.test(saved[0].name));
-  ok('and hands it a valid backup', JSON.parse(saved[0].text).sessions.length === 1);
   ok('then says it saved', (await app.textContent('#dataMsg')).includes('saved'));
+  ok('export goes through the Android bridge', saved.length === 1 && /^gym-log-.*\.json$/.test(saved[0].name));
+  ok('and hands it a valid backup', JSON.parse(saved[0].text).sessions.length === 2);
+  const stored = await app.evaluate(() => JSON.parse(localStorage.getItem('__fake_sqlite')));
+  ok('new sets are written to the database', stored.sessions.length === 2);
+  ok('nothing is written back to localStorage', await app.evaluate(() => localStorage.getItem('gym-log-v1') === null));
+  await app.evaluate(() => { window.GymAndroid.dbSave = () => false; });
+  await app.goto(fileUrl);
+  await app.evaluate(() => { window.GymAndroid.dbSave = () => false; });
+  await app.locator('#list .ex').first().locator('.set').nth(1).click();
+  ok('a failed database write is reported, not silent', await app.locator('#dbAlert').isVisible());
   ok('no script errors in the app', appErrors.length === 0, appErrors.join(' | '));
   await shell.close();
 } finally {

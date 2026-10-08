@@ -19,7 +19,7 @@
 
 main { display: block; }
 .rules { margin-bottom: 10px; }
-#kneeAlert { margin-bottom: 10px; }
+#kneeAlert, #dbAlert { margin-bottom: 10px; }
 
 /* ---------- tabs ---------- */
 .tabs {

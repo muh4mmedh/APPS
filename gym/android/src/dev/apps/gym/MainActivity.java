@@ -22,6 +22,10 @@ import java.nio.charset.StandardCharsets;
  * and keeps localStorage between launches and app updates. The page needs
  * nothing that requires a secure context (no camera), so file:// is enough.
  *
+ * The log itself is kept in SQLite (GymDatabase), which the page reaches
+ * through GymAndroid.dbLoad / dbSave. Installing a newer APK over this one
+ * keeps the database; only uninstalling removes it.
+ *
  * What a browser does for free and a WebView does not is wired up here:
  *   - <input type="file"> (import a backup) opens the system file picker
  *   - export goes through GymAndroid.saveFile, which asks where to save,
@@ -34,12 +38,14 @@ public class MainActivity extends Activity {
     private static final String START = "file:///android_asset/www/index.html";
 
     private WebView web;
+    private GymDatabase db;
     private ValueCallback<Uri[]> pickCallback;
     private String pendingText;
 
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        db = new GymDatabase(this);
         web = new WebView(this);
         web.setBackgroundColor(0xFF0A0C11);
 
@@ -87,6 +93,19 @@ public class MainActivity extends Activity {
 
     /* Called from the page. Methods run on a background thread. */
     private class Bridge {
+        /* The whole log as JSON, or null if the database could not be read. */
+        @JavascriptInterface
+        public String dbLoad() {
+            try { return db.load(); }
+            catch (Exception e) { return null; }
+        }
+
+        /* Replaces the stored log; false (and nothing changed) on failure. */
+        @JavascriptInterface
+        public boolean dbSave(String json) {
+            return db.save(json);
+        }
+
         @JavascriptInterface
         public void saveFile(final String name, final String text) {
             runOnUiThread(new Runnable() {
@@ -137,6 +156,12 @@ public class MainActivity extends Activity {
     public void onBackPressed() {
         if (web.canGoBack()) web.goBack();
         else super.onBackPressed();
+    }
+
+    @Override
+    protected void onDestroy() {
+        db.close();
+        super.onDestroy();
     }
 
     @Override

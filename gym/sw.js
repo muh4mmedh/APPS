@@ -8,7 +8,7 @@
  * Bump VERSION whenever FILES changes. tests/store.test.cjs checks every file
  * the app loads is listed here.
  */
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const CACHE = 'gym-v' + VERSION;
 
 const FILES = [

@@ -37,6 +37,9 @@ jobs:
       - name: Engine tests
         run: node tests/solver.test.cjs 5000
 
+      - name: Gym app logic tests
+        run: node gym/tests/store.test.cjs
+
       - name: Install browser test deps
         run: |
           npm install --no-fund --no-audit
@@ -44,6 +47,9 @@ jobs:
 
       - name: Browser tests
         run: node tests/browser.test.mjs
+
+      - name: Gym app browser tests
+        run: node gym/tests/browser.test.mjs
 
       - name: Icons are up to date
         run: python3 tools/make-icons.py --check

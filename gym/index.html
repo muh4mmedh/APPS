@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gym</title>
+<meta name="description" content="Knee-safe workout guide and log. Form pictures, sets, weights and a knee check after every session.">
+<meta name="theme-color" content="#0a0c11">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="shell">
+
+  <header class="topbar">
+    <span class="brandmark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 9v6M6 7v10M18 7v10M21 9v6M6 12h12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>
+    </span>
+    <div>
+      <h1 class="topbar__title" id="viewTitle">Gym</h1>
+      <p class="faint topbar__sub" id="viewSub">Knee-safe guide and log</p>
+    </div>
+    <div class="topbar__spacer"></div>
+    <a class="btn" id="viewSwitch" href="#history">History</a>
+  </header>
+
+  <!-- Training -->
+  <main id="train">
+    <div class="notice notice--bad" id="kneeAlert" role="alert" hidden></div>
+    <div class="notice notice--warn rules"><span><strong>Knee first.</strong> Stop if it swells, gives way, locks or hurts sharply, and see your doctor before the next session. No deep squats, lunges, jumping or running for now.</span></div>
+
+    <div class="tabs" role="tablist" id="tabs"></div>
+
+    <div class="progress">
+      <div class="progress__row"><span id="dayLabel"></span><span id="pct"></span></div>
+      <div class="bar"><i id="fill"></i></div>
+    </div>
+    <p class="daynote muted" id="dayNote" hidden></p>
+
+    <div id="list"></div>
+
+    <section class="card finish" id="finish" aria-labelledby="finishTitle">
+      <h2 id="finishTitle">After the session: how did the knee feel?</h2>
+      <div class="knee-pick" id="kneePick">
+        <button type="button" class="pick" data-knee="fine">Fine</button>
+        <button type="button" class="pick" data-knee="sore">A bit sore</button>
+        <button type="button" class="pick" data-knee="off">Felt off</button>
+      </div>
+      <div class="notice notice--bad" id="kneeOffNote" hidden>
+        <span><strong>Stop here if it hurts.</strong> If the knee swells, gives way, locks or hurts sharply, see your doctor before training again. Next session, keep every weight the same or lighter.</span>
+      </div>
+      <label class="bw" for="bwInput">
+        <span>Body weight today <span class="faint">(optional)</span></span>
+        <span class="bw__field"><input id="bwInput" type="number" inputmode="decimal" step="0.1" min="0"><span id="bwUnit">kg</span></span>
+      </label>
+    </section>
+
+    <div class="tools">
+      <button class="btn btn--quiet" type="button" id="clearDay">Clear this day's sets</button>
+    </div>
+    <p class="foot faint">The pictures are simple stick figure drawings of the start and finish positions. They show the idea, not every detail, so have a trainer check your form on the heavier lifts. Everything is saved on this device only. Ticks start fresh each Monday; your logged numbers stay in History.</p>
+  </main>
+
+  <!-- History -->
+  <main id="history" hidden>
+    <section class="card panel">
+      <h2>Knee checks</h2>
+      <p class="muted" id="kneeSummary"></p>
+      <div class="dots" id="kneeDots"></div>
+    </section>
+
+    <section class="card panel">
+      <h2>Body weight</h2>
+      <p class="muted" id="bwSummary"></p>
+    </section>
+
+    <section class="panel-plain">
+      <h2>Sessions</h2>
+      <div id="sessions"></div>
+    </section>
+
+    <section class="card panel">
+      <h2>Settings and data</h2>
+      <div class="row">
+        <span>Weight unit</span>
+        <div class="seg" role="group" aria-label="Weight unit">
+          <button type="button" class="seg__b" data-unit="kg">kg</button>
+          <button type="button" class="seg__b" data-unit="lb">lb</button>
+        </div>
+      </div>
+      <div class="row row--wrap">
+        <button class="btn" type="button" id="exportBtn">Export a backup</button>
+        <label class="btn" for="importFile">Import a backup</label>
+        <input type="file" id="importFile" accept="application/json,.json" class="sr-only">
+      </div>
+      <p class="notice" id="dataMsg" hidden></p>
+    </section>
+  </main>
+
+</div>
+
+<!-- Log or edit one set -->
+<dialog id="sheet" class="sheet" aria-labelledby="sheetTitle">
+  <form method="dialog" id="sheetForm">
+    <h2 id="sheetTitle"></h2>
+    <p class="muted" id="sheetSub"></p>
+    <div class="field" id="fieldW">
+      <span class="field__label">Weight (<span id="wUnit">kg</span>) <span class="faint">0 = body weight</span></span>
+      <div class="stepper">
+        <button type="button" class="stepper__b" data-step="w" data-dir="-1" aria-label="Less weight">&minus;</button>
+        <input id="inW" type="number" inputmode="decimal" step="any" min="0" aria-label="Weight">
+        <button type="button" class="stepper__b" data-step="w" data-dir="1" aria-label="More weight">+</button>
+      </div>
+    </div>
+    <div class="field" id="fieldR">
+      <span class="field__label" id="rLabel">Reps</span>
+      <div class="stepper">
+        <button type="button" class="stepper__b" data-step="r" data-dir="-1" aria-label="Fewer">&minus;</button>
+        <input id="inR" type="number" inputmode="numeric" step="1" min="0" aria-labelledby="rLabel">
+        <button type="button" class="stepper__b" data-step="r" data-dir="1" aria-label="More">+</button>
+      </div>
+    </div>
+    <div class="sheet__actions">
+      <button type="button" class="btn btn--quiet" id="sheetRemove">Remove</button>
+      <span class="topbar__spacer"></span>
+      <button type="button" class="btn" id="sheetCancel">Cancel</button>
+      <button type="submit" class="btn btn--primary btn--lg" id="sheetSave">Save set</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="js/data.js"></script>
+<script src="js/figures.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
